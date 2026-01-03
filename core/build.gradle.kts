@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-apply(from = "$rootDir/gradle/android-common.gradle.kts")
+apply(from = "$rootDir/gradle/android-common.gradle")
 
 android {
     namespace = "org.skitrace.skitrace.core"
