@@ -5,40 +5,35 @@ object MapStyles {
     private const val SOURCE_BASE = "base_source"
     private const val SOURCE_PISTES = "pistes_source"
 
-    private const val TILE_BASE_URL = "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+    private const val TILE_LIGHT_URL = "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+    private const val TILE_DARK_URL = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+
     private const val TILE_PISTES_URL = "https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png"
 
     fun getDynamicStyle(isDarkTheme: Boolean): String {
 
-
+        val tileUrl: String
         val backgroundColor: String
-        val baseBrightnessMax: Double
-        val baseSaturation: Double
-        val baseContrast: Double
         val pistesOpacity: Double
 
         if (isDarkTheme) {
-            backgroundColor = "#121212"
-            baseBrightnessMax = 0.6
-            baseSaturation = -0.8
-            baseContrast = 0.2
+            tileUrl = TILE_DARK_URL
+            backgroundColor = "#262626"
             pistesOpacity = 0.85
         } else {
+            tileUrl = TILE_LIGHT_URL
             backgroundColor = "#F0F0F0"
-            baseBrightnessMax = 1.0
-            baseSaturation = 0.0
-            baseContrast = 0.0
             pistesOpacity = 1.0
         }
 
         return """
         {
           "version": 8,
-          "name": "SkiTrace Efficient",
+          "name": "SkiTrace Dynamic",
           "sources": {
             "$SOURCE_BASE": {
               "type": "raster",
-              "tiles": ["$TILE_BASE_URL"],
+              "tiles": ["$tileUrl"],
               "tileSize": 256,
               "attribution": "&copy; OpenStreetMap, &copy; CARTO"
             },
@@ -63,9 +58,6 @@ object MapStyles {
               "source": "$SOURCE_BASE",
               "paint": {
                 "raster-opacity": 1.0,
-                "raster-brightness-max": $baseBrightnessMax,
-                "raster-saturation": $baseSaturation,
-                "raster-contrast": $baseContrast,
                 "raster-fade-duration": 300
               }
             },

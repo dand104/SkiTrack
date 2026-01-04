@@ -1,15 +1,11 @@
-cmake_minimum_required(VERSION 3.22.1)
-
-project(SkiTrace)
-
 if(NOT ANDROID)
     message(WARNING "Android build only supported. Rewrite build steps to work on other environment")
 endif()
 
 add_library(
-        skitrace_core
+        skitrace-lib-dl
         SHARED
-        export.cxx
+        export.cc
 )
 
 find_library(
@@ -18,6 +14,7 @@ find_library(
 )
 
 target_link_libraries(
-        skitrace_core
+        skitrace-lib-dl
+        SkiTraceNativeCore
         ${log-lib}
 )
