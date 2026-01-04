@@ -1,11 +1,14 @@
-if(NOT ANDROID)
-    message(WARNING "Android build only supported. Rewrite build steps to work on other environment")
-endif()
-
 add_library(
-        skitrace-lib-dl
+        skitrace-core-native
         SHARED
+        # JNI Exports
         export.cc
+        # Math module
+        math/GeoUtils.cxx
+        # Processor module
+        processor/TrackProcessor.cxx
+        # Filters
+        filter/VerticalTracker.cxx
 )
 
 find_library(
@@ -13,8 +16,12 @@ find_library(
         log
 )
 
+target_include_directories(skitrace-core-native PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(
-        skitrace-lib-dl
-        SkiTraceNativeCore
+        skitrace-core-native
         ${log-lib}
+        Eigen3::Eigen
 )
