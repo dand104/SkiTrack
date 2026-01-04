@@ -12,7 +12,7 @@ extern "C" {
 
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_destroyNativeProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
-        auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
+        const auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         delete processor;
     }
 
@@ -38,7 +38,7 @@ extern "C" {
         auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
         if (!outData) return;
 
-        GeoPoint p = processor->AddPoint(lat, lon, alt, timestamp);
+        const GeoPoint p = processor->AddPoint(lat, lon, alt, timestamp);
 
         outData[0] = p.latitude;
         outData[1] = p.longitude;
@@ -52,13 +52,13 @@ extern "C" {
     Java_org_skitrace_skitrace_core_TrackProcessor_getStatisticsNative(
             JNIEnv *env, jobject thiz, jlong ptr, jobject outputBuf) {
 
-        auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
+        const auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         if (!processor) return;
 
         auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
         if (!outData) return;
 
-        TrackStatistics s = processor->GetStatistics();
+        const TrackStatistics s = processor->GetStatistics();
 
         outData[0] = s.totalDistance;
         outData[1] = s.maxSpeed;

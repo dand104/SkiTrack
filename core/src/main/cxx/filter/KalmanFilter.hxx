@@ -10,10 +10,10 @@ namespace skitrace {
              * @param p Estimated error covariance
              * @param initial_value
              */
-            KalmanFilter1D(double q, double r, double p, double initial_value)
+            KalmanFilter1D(const double q, const double r, const double p, const double initial_value)
                 : q_(q), r_(r), p_(p), x_(initial_value) {}
 
-            void Update(double measurement) {
+            void Update(const double measurement) {
                 p_ = p_ + q_;
 
                 // Measurement update

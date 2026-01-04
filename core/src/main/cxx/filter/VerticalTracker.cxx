@@ -56,13 +56,13 @@ namespace skitrace {
         P_ = F * P_ * F.transpose() + Q_;
     }
 
-    void VerticalTracker::UpdateBarometer(double pressureAlt) {
+    void VerticalTracker::UpdateBarometer(const double pressureAlt) {
         if (!initialized_) {
             Initialize(pressureAlt);
             return;
         }
 
-        double R = SIGMA_BARO * SIGMA_BARO;
+        const double R = SIGMA_BARO * SIGMA_BARO;
 
         // Kalman Gain
         // S = H*P*H' + R

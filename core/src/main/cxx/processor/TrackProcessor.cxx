@@ -24,28 +24,28 @@ namespace skitrace {
         lastSensorTime_ = 0;
         verticalTracker_ = std::make_unique<VerticalTracker>();
     }
-    void TrackProcessor::UpdateSensors(double accelZ, double pressureHPa, long long timestamp) {
+    void TrackProcessor::UpdateSensors(const double accelZ, const double pressureHPa, const long long timestamp) {
         if (lastSensorTime_ == 0) {
             lastSensorTime_ = timestamp;
-            double alt = GeoUtils::PressureToAltitude(pressureHPa);
+            const double alt = GeoUtils::PressureToAltitude(pressureHPa);
             verticalTracker_->UpdateBarometer(alt);
             return;
         }
 
-        long long dtMs = timestamp - lastSensorTime_;
+        const long long dtMs = timestamp - lastSensorTime_;
         if (dtMs > 0) {
-            double dtSec = dtMs / 1000.0;
+            const double dtSec = dtMs / 1000.0;
             verticalTracker_->Predict(accelZ, dtSec);
         }
 
         if (pressureHPa > 0) {
-            double baroAlt = GeoUtils::PressureToAltitude(pressureHPa);
+            const double baroAlt = GeoUtils::PressureToAltitude(pressureHPa);
             verticalTracker_->UpdateBarometer(baroAlt);
         }
 
         lastSensorTime_ = timestamp;
     }
-    GeoPoint TrackProcessor::AddPoint(double lat, double lon, double alt, long long timestamp) {
+    GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt, const long long timestamp) {
         if (isFirstPoint_) {
             isFirstPoint_ = false;
             startTime_ = timestamp;
@@ -64,7 +64,7 @@ namespace skitrace {
         lonFilter_->Update(lon);
         verticalTracker_->UpdateGPS(alt);
 
-        GeoPoint newFilteredPoint = {
+        const GeoPoint newFilteredPoint = {
                 latFilter_->GetState(),
                 lonFilter_->GetState(),
                 verticalTracker_->GetAltitude(),
@@ -72,12 +72,12 @@ namespace skitrace {
         };
 
 
-        double dist = GeoUtils::HaversineDistance(lastFilteredPoint_, newFilteredPoint);
-        double altDiff = newFilteredPoint.altitude - lastFilteredPoint_.altitude;
-        long long timeDiff = timestamp - lastFilteredPoint_.timestamp;
+        const double dist = GeoUtils::HaversineDistance(lastFilteredPoint_, newFilteredPoint);
+        const double altDiff = newFilteredPoint.altitude - lastFilteredPoint_.altitude;
+        const long long timeDiff = timestamp - lastFilteredPoint_.timestamp;
 
         if (timeDiff > 0) {
-            double speed = GeoUtils::CalculateSpeed(dist, timeDiff);
+            const double speed = GeoUtils::CalculateSpeed(dist, timeDiff);
 
             if (speed < 45.0) {
                 totalDistance_ += dist;
@@ -103,7 +103,7 @@ namespace skitrace {
 
     TrackStatistics TrackProcessor::GetStatistics() const {
         double avgSpeed = 0.0;
-        long long duration = lastTime_ - startTime_;
+        const long long duration = lastTime_ - startTime_;
         if (duration > 0) {
             avgSpeed = GeoUtils::CalculateSpeed(totalDistance_, duration);
         }
