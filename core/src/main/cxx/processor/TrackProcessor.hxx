@@ -27,22 +27,22 @@ namespace skitrace {
 
             GeoPoint AddPoint(double lat, double lon, double alt, long long timestamp);
 
-            TrackStatistics GetStatistics() const;
+            [[nodiscard]] TrackStatistics GetStatistics() const;
             void UpdateSensors(double accelZ, double pressureHPa, long long timestamp);
 
             void Reset();
 
         private:
-            bool isFirstPoint_;
-            GeoPoint lastFilteredPoint_;
+            bool isFirstPoint_{};
+            GeoPoint lastFilteredPoint_{};
 
-            double totalDistance_;
-            double maxSpeed_;
-            double verticalDrop_;
-            double verticalAscent_;
-            long long startTime_;
-            long long lastTime_;
-            double currentSpeed_;
+            double totalDistance_{};
+            double maxSpeed_{};
+            double verticalDrop_{};
+            double verticalAscent_{};
+            long long startTime_{};
+            long long lastTime_{};
+            double currentSpeed_{};
 
             std::unique_ptr<KalmanFilter1D> latFilter_;
             std::unique_ptr<KalmanFilter1D> lonFilter_;
