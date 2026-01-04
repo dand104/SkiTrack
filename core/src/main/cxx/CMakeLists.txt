@@ -11,10 +11,20 @@ add_library(
         filter/VerticalTracker.cxx
 )
 
-find_library(
-        log-lib
-        log
-)
+if (ANDROID)
+    target_link_options(skitrace-core-native PRIVATE "-Wl,-z,max-page-size=16384")
+    find_library(
+            log-lib
+            log
+    )
+    target_link_libraries(
+            skitrace-core-native
+            ${log-lib}
+    )
+endif()
+
+
+
 
 target_include_directories(skitrace-core-native PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -22,6 +32,5 @@ target_include_directories(skitrace-core-native PRIVATE
 
 target_link_libraries(
         skitrace-core-native
-        ${log-lib}
         Eigen3::Eigen
 )
