@@ -11,4 +11,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+
+    // Coroutines support for Flow and async tasks
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 }

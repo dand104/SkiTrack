@@ -2,6 +2,7 @@ package org.skitrace.skitrace.core;
 
 import org.skitrace.skitrace.core.model.SkiStatistics;
 import org.skitrace.skitrace.core.model.TrackPoint;
+import org.skitrace.skitrace.core.model.TrackState;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -18,7 +19,6 @@ public class TrackProcessor implements AutoCloseable {
     // Point: lat, lon, alt (3 doubles = 24 bytes)
     private final DoubleBuffer pointOutputBuffer;
 
-    // Stats: dist, maxSpd, avgSpd, vDrop, vAscent, curAlt, curSpd, dur (8 doubles = 64 bytes)
     private final DoubleBuffer statsOutputBuffer;
 
     public TrackProcessor() {
@@ -28,7 +28,7 @@ public class TrackProcessor implements AutoCloseable {
                 .order(ByteOrder.nativeOrder())
                 .asDoubleBuffer();
 
-        statsOutputBuffer = ByteBuffer.allocateDirect(8 * 8)
+        statsOutputBuffer = ByteBuffer.allocateDirect(9 * 8)
                 .order(ByteOrder.nativeOrder())
                 .asDoubleBuffer();
     }
@@ -37,36 +37,23 @@ public class TrackProcessor implements AutoCloseable {
         if (nativePtr == 0) throw new IllegalStateException("Process is closed");
 
         addPointNative(nativePtr, lat, lon, alt, timestamp, pointOutputBuffer);
-
-        return new TrackPoint(
-                pointOutputBuffer.get(0),
-                pointOutputBuffer.get(1),
-                pointOutputBuffer.get(2),
-                timestamp
-        );
+        return new TrackPoint(pointOutputBuffer.get(0), pointOutputBuffer.get(1), pointOutputBuffer.get(2), timestamp);
     }
 
     public SkiStatistics getStatistics() {
         if (nativePtr == 0) return new SkiStatistics();
-
         getStatisticsNative(nativePtr, statsOutputBuffer);
 
         return new SkiStatistics(
-                statsOutputBuffer.get(0), // distance
-                statsOutputBuffer.get(1), // maxSpeed
-                statsOutputBuffer.get(2), // avgSpeed
-                statsOutputBuffer.get(3), // verticalDrop
-                statsOutputBuffer.get(4), // verticalAscent
-                statsOutputBuffer.get(5), // currentAltitude
-                statsOutputBuffer.get(6), // currentSpeed
-                (long) statsOutputBuffer.get(7) // duration
+                statsOutputBuffer.get(0), statsOutputBuffer.get(1), statsOutputBuffer.get(2),
+                statsOutputBuffer.get(3), statsOutputBuffer.get(4), statsOutputBuffer.get(5),
+                statsOutputBuffer.get(6), (long) statsOutputBuffer.get(7),
+                TrackState.fromInt((int) statsOutputBuffer.get(8))
         );
     }
 
     public void reset() {
-        if (nativePtr != 0) {
-            resetNative(nativePtr);
-        }
+        if (nativePtr != 0) resetNative(nativePtr);
     }
 
     @Override
@@ -76,6 +63,11 @@ public class TrackProcessor implements AutoCloseable {
             nativePtr = 0;
         }
     }
+    public void updateSensors(int type, float v0, float v1, float v2, float v3, long timestamp) {
+        if (nativePtr != 0) {
+            updateSensorsNative(nativePtr, type, v0, v1, v2, v3, timestamp);
+        }
+    }
 
     private native long createNativeProcessor();
     private native void destroyNativeProcessor(long ptr);
@@ -83,4 +75,6 @@ public class TrackProcessor implements AutoCloseable {
 
     private native void addPointNative(long ptr, double lat, double lon, double alt, long timestamp, DoubleBuffer outputBuf);
     private native void getStatisticsNative(long ptr, DoubleBuffer outputBuf);
+
+    private native void updateSensorsNative(long ptr, int type, float v0, float v1, float v2, float v3, long timestamp);
 }

@@ -1,6 +1,6 @@
-# vwndor script
+# dependencies script
 include(FetchContent)
-
+message(STATUS "Loading external dependencies...")
 # Eigen3
 FetchContent_Declare(
         Eigen3

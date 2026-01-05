@@ -6,6 +6,6 @@ if(NOT ANDROID)
     message(WARNING "Android build only supported. Rewrite build steps to work on other environment")
 endif()
 
-include(vendor.cmake)
+include(dependencies.cmake)
 
 add_subdirectory(src/main/cpp)

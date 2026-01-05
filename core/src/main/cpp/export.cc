@@ -22,10 +22,6 @@ extern "C" {
         if (processor) processor->Reset();
     }
 
-    /**
-     * @param outputBuf DirectByteBuffer (capacity >= 3 doubles)
-     * Writes [lat, lon, alt] to buffer.
-     */
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_addPointNative(
             JNIEnv *env, jobject thiz, jlong ptr,
@@ -45,9 +41,6 @@ extern "C" {
         outData[2] = p.altitude;
     }
 
-    /**
-     * @param outputBuf DirectByteBuffer (capacity >= 8 doubles)
-     */
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_getStatisticsNative(
             JNIEnv *env, jobject thiz, jlong ptr, jobject outputBuf) {
@@ -68,16 +61,17 @@ extern "C" {
         outData[5] = s.currentAltitude;
         outData[6] = s.currentSpeed;
         outData[7] = static_cast<double>(s.durationMs);
+        outData[8] = static_cast<double>(s.currentState);
     }
 
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_updateSensorsNative(
             JNIEnv *env, jobject thiz, jlong ptr,
-            jdouble accelZ, jdouble pressureHPa, jlong timestamp) {
+            jint type, jfloat v0, jfloat v1, jfloat v2, jfloat v3, jlong timestamp) {
 
         auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         if (processor) {
-            processor->UpdateSensors(accelZ, pressureHPa, timestamp);
+            processor->UpdateSensors(type, v0, v1, v2, v3, timestamp);
         }
     }
 }
