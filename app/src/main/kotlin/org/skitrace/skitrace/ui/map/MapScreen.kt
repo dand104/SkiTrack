@@ -1,13 +1,8 @@
 package org.skitrace.skitrace.ui.map
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
@@ -17,38 +12,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
-import androidx.activity.ComponentActivity
 import androidx.core.view.WindowInsetsControllerCompat
-import org.maplibre.compose.camera.CameraPosition
-import org.maplibre.compose.camera.rememberCameraState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.maplibre.compose.map.GestureOptions
 import org.maplibre.compose.map.MapOptions
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.OrnamentOptions
 import org.maplibre.compose.style.BaseStyle
-import org.maplibre.spatialk.geojson.Position
 import org.skitrace.skitrace.map.MapStyles
-import androidx.compose.foundation.layout.*
 
 @Composable
-fun MapScreen() {
-    val view = androidx.compose.ui.platform.LocalView.current
+fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val isDark = isSystemInDarkTheme()
-
-    SideEffect {
-        val window = (view.context as ComponentActivity).window
-        val controller = WindowInsetsControllerCompat(window, view)
-        controller.isAppearanceLightStatusBars = !isDark
-    }
-
-    val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(
-            target = Position(longitude = 58.86441106582072, latitude = 57.58123541662825),
-            zoom = 12.0
-        )
-    )
+    val view = LocalView.current
 
     var isMapLoaded by remember { mutableStateOf(false) }
     var showAttributionDialog by remember { mutableStateOf(false) }
@@ -56,22 +34,28 @@ fun MapScreen() {
     val style = remember(isDark) {
         BaseStyle.Json(MapStyles.getDynamicStyle(isDark))
     }
-
+    SideEffect {
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            val controller = WindowInsetsControllerCompat(window, view)
+            controller.isAppearanceLightStatusBars = !isDark
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         MaplibreMap(
             modifier = Modifier.fillMaxSize(),
             baseStyle = style,
-            cameraState = cameraState,
-            options = MapOptions(
-                ornamentOptions = OrnamentOptions(
-                    isCompassEnabled = true,
-                    isLogoEnabled = false,
-                    isAttributionEnabled = false
-                ),
-                gestureOptions = GestureOptions(
-                    isTiltEnabled = true
+            cameraState = viewModel.cameraState,
+            options = remember {
+                MapOptions(
+                    ornamentOptions = OrnamentOptions(
+                        isCompassEnabled = true,
+                        isLogoEnabled = false,
+                        isAttributionEnabled = false
+                    ),
+                    gestureOptions = GestureOptions(isTiltEnabled = true)
                 )
-            ),
+            },
             onMapLoadFinished = {
                 isMapLoaded = true
             }
@@ -86,8 +70,8 @@ fun MapScreen() {
         ) {
             SmallFloatingActionButton(
                 onClick = {
-                    val currentPos = cameraState.position
-                    cameraState.position = currentPos.copy(zoom = currentPos.zoom + 1)
+                    val currentPos = viewModel.cameraState.position
+                    viewModel.cameraState.position = currentPos.copy(zoom = currentPos.zoom + 1)
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface
@@ -99,8 +83,8 @@ fun MapScreen() {
 
             SmallFloatingActionButton(
                 onClick = {
-                    val currentPos = cameraState.position
-                    cameraState.position = currentPos.copy(zoom = currentPos.zoom - 1)
+                    val currentPos = viewModel.cameraState.position
+                    viewModel.cameraState.position = currentPos.copy(zoom = currentPos.zoom - 1)
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface
