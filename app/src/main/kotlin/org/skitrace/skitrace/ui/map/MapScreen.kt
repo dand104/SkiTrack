@@ -19,7 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import org.maplibre.android.MapLibre
+import androidx.activity.ComponentActivity
+import androidx.core.view.WindowInsetsControllerCompat
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.map.GestureOptions
@@ -29,14 +30,17 @@ import org.maplibre.compose.map.OrnamentOptions
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.Position
 import org.skitrace.skitrace.map.MapStyles
+import androidx.compose.foundation.layout.*
 
 @Composable
 fun MapScreen() {
-    val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val isDark = isSystemInDarkTheme()
 
     SideEffect {
-        MapLibre.getInstance(context)
+        val window = (view.context as ComponentActivity).window
+        val controller = WindowInsetsControllerCompat(window, view)
+        controller.isAppearanceLightStatusBars = !isDark
     }
 
     val cameraState = rememberCameraState(
@@ -75,6 +79,7 @@ fun MapScreen() {
 
         Column(
             modifier = Modifier
+                .statusBarsPadding()
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -108,6 +113,7 @@ fun MapScreen() {
             onClick = { showAttributionDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
                 .padding(8.dp)
                 .size(40.dp)
         ) {
