@@ -64,8 +64,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .statusBarsPadding()
-                .align(Alignment.CenterEnd)
-                .padding(end = 16.dp),
+                .padding(top = 16.dp, end = 16.dp)
+                .align(Alignment.CenterEnd),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             SmallFloatingActionButton(

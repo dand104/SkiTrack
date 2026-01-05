@@ -28,6 +28,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import org.skitrace.skitrace.ui.map.MapScreen
 import org.skitrace.skitrace.ui.theme.SkiTraceTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,11 +52,16 @@ fun MainApp() {
         Screen.Map,
         Screen.Stats
     )
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
+        containerColor = Color.Transparent,
         bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
+            NavigationBar(
+                containerColor = if (currentRoute == Screen.Map.route) Color.Transparent else MaterialTheme.colorScheme.surface,
+                tonalElevation = if (currentRoute == Screen.Map.route) 0.dp else 3.dp
+            ) {
                 val currentDestination = navBackStackEntry?.destination
 
                 screens.forEach { screen ->
@@ -80,7 +87,7 @@ fun MainApp() {
         NavHost(
             navController = navController,
             startDestination = Screen.Map.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             enterTransition = { fadeIn(animationSpec = tween(300)) },
             exitTransition = { fadeOut(animationSpec = tween(300)) },
             popEnterTransition = { fadeIn(animationSpec = tween(300)) },
@@ -88,9 +95,15 @@ fun MainApp() {
 
 
         ) {
-            composable(Screen.Trace.route) { TraceScreen() }
-            composable(Screen.Map.route) { MapScreen() }
-            composable(Screen.Stats.route) { StatsScreen() }
+            composable(Screen.Trace.route) {
+                Box(Modifier.padding(innerPadding)) { TraceScreen() }
+            }
+            composable(Screen.Map.route) {
+                MapScreen()
+            }
+            composable(Screen.Stats.route) {
+                Box(Modifier.padding(innerPadding)) { StatsScreen() }
+            }
         }
     }
 }
