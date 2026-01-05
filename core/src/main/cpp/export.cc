@@ -92,7 +92,7 @@ extern "C" {
         env->ReleasePrimitiveArrayCritical(v3s, c_v3, 0);
         env->ReleasePrimitiveArrayCritical(timestamps, c_time, 0);
     }
-    
+
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_updateActivityNative(
             JNIEnv *env, jobject thiz, jlong ptr, jint type, jint confidence) {
