@@ -7,16 +7,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import org.maplibre.android.MapLibre
@@ -47,6 +47,7 @@ fun MapScreen() {
     )
 
     var isMapLoaded by remember { mutableStateOf(false) }
+    var showAttributionDialog by remember { mutableStateOf(false) }
 
     val style = remember(isDark) {
         BaseStyle.Json(MapStyles.getDynamicStyle(isDark))
@@ -61,7 +62,7 @@ fun MapScreen() {
                 ornamentOptions = OrnamentOptions(
                     isCompassEnabled = true,
                     isLogoEnabled = false,
-                    isAttributionEnabled = true
+                    isAttributionEnabled = false
                 ),
                 gestureOptions = GestureOptions(
                     isTiltEnabled = true
@@ -103,10 +104,45 @@ fun MapScreen() {
             }
         }
 
+        IconButton(
+            onClick = { showAttributionDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+                .size(40.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = "Attribution",
+                tint = if (isDark) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.6f)
+            )
+        }
+
         if (!isMapLoaded) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (showAttributionDialog) {
+            AlertDialog(
+                onDismissRequest = { showAttributionDialog = false },
+                title = { Text("Map Data Attribution") },
+                text = {
+                    Column {
+                        Text("© OpenStreetMap contributors", style = MaterialTheme.typography.bodyMedium)
+                        Text("© CARTO", style = MaterialTheme.typography.bodyMedium)
+                        Text("© OpenSnowMap", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Powered by MapLibre Native", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAttributionDialog = false }) {
+                        Text("Close")
+                    }
+                }
             )
         }
     }
