@@ -63,12 +63,16 @@ public class TrackProcessor implements AutoCloseable {
             nativePtr = 0;
         }
     }
-    public void updateSensors(int type, float v0, float v1, float v2, float v3, long timestamp) {
+    public void updateSensorsBatch(int[] types, float[] v0s, float[] v1s, float[] v2s, float[] v3s, long[] timestamps, int count) {
         if (nativePtr != 0) {
-            updateSensorsNative(nativePtr, type, v0, v1, v2, v3, timestamp);
+            updateSensorsBatchNative(nativePtr, types, v0s, v1s, v2s, v3s, timestamps, count);
         }
     }
-
+    public void updateActivity(int type, int confidence) {
+        if (nativePtr != 0) {
+            updateActivityNative(nativePtr, type, confidence);
+        }
+    }
     private native long createNativeProcessor();
     private native void destroyNativeProcessor(long ptr);
     private native void resetNative(long ptr);
@@ -76,5 +80,7 @@ public class TrackProcessor implements AutoCloseable {
     private native void addPointNative(long ptr, double lat, double lon, double alt, double accuracy, long timestamp, DoubleBuffer outputBuf);
     private native void getStatisticsNative(long ptr, DoubleBuffer outputBuf);
 
-    private native void updateSensorsNative(long ptr, int type, float v0, float v1, float v2, float v3, long timestamp);
+    private native void updateSensorsBatchNative(long ptr, int[] types, float[] v0, float[] v1, float[] v2, float[] v3, long[] timestamps, int count);
+    private native void updateActivityNative(long ptr, int type, int confidence);
+
 }

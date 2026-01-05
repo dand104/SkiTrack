@@ -2,7 +2,7 @@
 #define SKITRACE_TRACK_PROCESSOR_HXX
 
 #include "math/GeoUtils.hxx"
-#include "filter/KalmanFilter.hxx"
+#include "filter/KalmanFilterCV.hxx"
 #include <Eigen/Geometry>
 #include "filter/VerticalTracker.hxx"
 #include <memory>
@@ -37,6 +37,7 @@ namespace skitrace {
 
             [[nodiscard]] TrackStatistics GetStatistics() const;
             void UpdateSensors(int sensorType, float v0, float v1, float v2, float v3, long long timestamp);
+            void UpdateActivity(int type, int confidence);
 
             void Reset();
 
@@ -58,13 +59,16 @@ namespace skitrace {
             int skiConsistentCount_ = 0;
             int idleConsistentCount_ = 0;
 
-            std::unique_ptr<KalmanFilter1D> latFilter_;
-            std::unique_ptr<KalmanFilter1D> lonFilter_;
+            std::unique_ptr<KalmanFilterCV> latFilter_;
+            std::unique_ptr<KalmanFilterCV> lonFilter_;
             std::unique_ptr<VerticalTracker> verticalTracker_;
             long long lastSensorTime_ = 0;
 
             Eigen::Quaterniond currentRotation_ = Eigen::Quaterniond::Identity();
             bool hasRotation_ = false;
+
+            int lastActivityType_ = -1;
+            int lastActivityConfidence_ = 0;
 
             const double PROCESS_NOISE = 3.0;
             const double MEASUREMENT_NOISE = 10.0;

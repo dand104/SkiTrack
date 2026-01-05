@@ -21,6 +21,16 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    flavorDimensions += "services"
+
+    productFlavors {
+        register("aosp") {
+            dimension = "services"
+        }
+        register("gms") {
+            dimension = "services"
+        }
+    }
 }
 
 dependencies {
