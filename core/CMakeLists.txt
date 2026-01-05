@@ -8,4 +8,4 @@ endif()
 
 include(vendor.cmake)
 
-add_subdirectory(src/main/cxx)
+add_subdirectory(src/main/cpp)
