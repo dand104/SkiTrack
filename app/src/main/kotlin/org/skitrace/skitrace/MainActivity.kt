@@ -16,6 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -28,6 +31,7 @@ import org.skitrace.skitrace.ui.theme.SkiTraceTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        org.maplibre.android.MapLibre.getInstance(this)
         setContent {
             SkiTraceTheme {
                 MainApp()
@@ -74,7 +78,13 @@ fun MainApp() {
         NavHost(
             navController = navController,
             startDestination = Screen.Map.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) }
+
+
         ) {
             composable(Screen.Trace.route) { TraceScreen() }
             composable(Screen.Map.route) { MapScreen() }
