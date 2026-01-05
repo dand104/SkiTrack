@@ -33,7 +33,7 @@ namespace skitrace {
             TrackProcessor();
             ~TrackProcessor() = default;
 
-            GeoPoint AddPoint(double lat, double lon, double alt, long long timestamp);
+            GeoPoint AddPoint(double lat, double lon, double alt, double accuracy, long long timestamp);
 
             [[nodiscard]] TrackStatistics GetStatistics() const;
             void UpdateSensors(int sensorType, float v0, float v1, float v2, float v3, long long timestamp);

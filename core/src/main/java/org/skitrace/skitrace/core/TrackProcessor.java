@@ -33,10 +33,10 @@ public class TrackProcessor implements AutoCloseable {
                 .asDoubleBuffer();
     }
 
-    public TrackPoint processPoint(double lat, double lon, double alt, long timestamp) {
+    public TrackPoint processPoint(double lat, double lon, double alt, double accuracy, long timestamp) {
         if (nativePtr == 0) throw new IllegalStateException("Process is closed");
 
-        addPointNative(nativePtr, lat, lon, alt, timestamp, pointOutputBuffer);
+        addPointNative(nativePtr, lat, lon, alt, accuracy, timestamp, pointOutputBuffer);
         return new TrackPoint(pointOutputBuffer.get(0), pointOutputBuffer.get(1), pointOutputBuffer.get(2), timestamp);
     }
 
@@ -73,7 +73,7 @@ public class TrackProcessor implements AutoCloseable {
     private native void destroyNativeProcessor(long ptr);
     private native void resetNative(long ptr);
 
-    private native void addPointNative(long ptr, double lat, double lon, double alt, long timestamp, DoubleBuffer outputBuf);
+    private native void addPointNative(long ptr, double lat, double lon, double alt, double accuracy, long timestamp, DoubleBuffer outputBuf);
     private native void getStatisticsNative(long ptr, DoubleBuffer outputBuf);
 
     private native void updateSensorsNative(long ptr, int type, float v0, float v1, float v2, float v3, long timestamp);

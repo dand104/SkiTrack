@@ -71,8 +71,7 @@ class TrackerRepository(
                 sensorChannel.trySend(RawSensorEvent(type, v0, v1, v2, v3, timestamp))
             }
 
-            // 3. Обработка локации
-            locationClient.getLocationUpdates(2000L)
+            locationClient.getLocationUpdates(1000L)
                 .flowOn(dispatchers.io)
                 .collect { location ->
                     val now = System.currentTimeMillis()
@@ -82,6 +81,7 @@ class TrackerRepository(
                             location.latitude,
                             location.longitude,
                             location.altitude,
+                            location.accuracy.toDouble(),
                             now
                         )
                         val s = trackProcessor.getStatistics()

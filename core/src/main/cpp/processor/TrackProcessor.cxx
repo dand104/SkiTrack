@@ -130,23 +130,28 @@ namespace skitrace {
         }
     }
 
-    GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt, const long long timestamp) {
+    GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt,
+                                    const double accuracy,
+                                    const long long timestamp) {
+        double r_variance = (accuracy < 1.0 ? 3.0 : accuracy);
+        r_variance *= r_variance;
+
         if (isFirstPoint_) {
             isFirstPoint_ = false;
             startTime_ = timestamp;
             lastTime_ = timestamp;
             lastSensorTime_ = timestamp;
 
-            latFilter_ = std::make_unique<KalmanFilter1D>(PROCESS_NOISE, MEASUREMENT_NOISE, ESTIMATION_ERROR, lat);
-            lonFilter_ = std::make_unique<KalmanFilter1D>(PROCESS_NOISE, MEASUREMENT_NOISE, ESTIMATION_ERROR, lon);
+            latFilter_ = std::make_unique<KalmanFilter1D>(PROCESS_NOISE, r_variance, ESTIMATION_ERROR, lat);
+            lonFilter_ = std::make_unique<KalmanFilter1D>(PROCESS_NOISE, r_variance, ESTIMATION_ERROR, lon);
             verticalTracker_->Initialize(alt);
 
             lastFilteredPoint_ = {lat, lon, alt, timestamp};
             return lastFilteredPoint_;
         }
 
-        latFilter_->Update(lat);
-        lonFilter_->Update(lon);
+        latFilter_->Update(lat, r_variance);
+        lonFilter_->Update(lon, r_variance);
         verticalTracker_->UpdateGPS(alt);
 
         const GeoPoint newFilteredPoint = {

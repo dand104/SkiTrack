@@ -13,13 +13,15 @@ namespace skitrace {
             KalmanFilter1D(const double q, const double r, const double p, const double initial_value)
                 : q_(q), r_(r), p_(p), x_(initial_value) {}
 
-            void Update(const double measurement) {
+             /**
+             * @param measurement Измеренное значение
+             * @param r_noise Шум измерения (дисперсия, обычно accuracy^2)
+             */
+            void Update(const double measurement, const double r_noise) {
                 p_ = p_ + q_;
-
-                // Measurement update
-                k_ = p_ / (p_ + r_);
+                k_ = p_ / (p_ + r_noise);
                 x_ = x_ + k_ * (measurement - x_);
-                p_ = (1 - k_) * p_;
+                p_ = (1.0 - k_) * p_;
             }
 
             double GetState() const {

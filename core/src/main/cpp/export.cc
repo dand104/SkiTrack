@@ -25,7 +25,8 @@ extern "C" {
     JNIEXPORT void JNICALL
     Java_org_skitrace_skitrace_core_TrackProcessor_addPointNative(
             JNIEnv *env, jobject thiz, jlong ptr,
-            jdouble lat, jdouble lon, jdouble alt, jlong timestamp,
+            jdouble lat, jdouble lon, jdouble alt,
+            jdouble accuracy, jlong timestamp,
             jobject outputBuf) {
 
         auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
@@ -34,7 +35,7 @@ extern "C" {
         auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
         if (!outData) return;
 
-        const GeoPoint p = processor->AddPoint(lat, lon, alt, timestamp);
+        const GeoPoint p = processor->AddPoint(lat, lon, alt, accuracy, timestamp);
 
         outData[0] = p.latitude;
         outData[1] = p.longitude;
