@@ -60,6 +60,7 @@ dependencies {
 
     // Maplibre Native Compose
     implementation("org.maplibre.compose:maplibre-compose:0.12.1")
+    implementation("org.maplibre.compose:maplibre-compose-material3:0.12.1")
 
     // Material Design library for Jetpack Compose
     implementation("androidx.compose.material3:material3")

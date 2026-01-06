@@ -54,13 +54,20 @@ fun MainApp() {
     )
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val isMapScreen = currentRoute == Screen.Map.route
 
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
+            val navBarContainerColor = if (isMapScreen) {
+                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
+
             NavigationBar(
-                containerColor = if (currentRoute == Screen.Map.route) Color.Transparent else MaterialTheme.colorScheme.surface,
-                tonalElevation = if (currentRoute == Screen.Map.route) 0.dp else 3.dp
+                containerColor = navBarContainerColor,
+                tonalElevation = if (isMapScreen) 0.dp else 3.dp
             ) {
                 val currentDestination = navBackStackEntry?.destination
 
@@ -99,7 +106,7 @@ fun MainApp() {
                 Box(Modifier.padding(innerPadding)) { TraceScreen() }
             }
             composable(Screen.Map.route) {
-                MapScreen()
+                MapScreen(contentPadding = innerPadding)
             }
             composable(Screen.Stats.route) {
                 Box(Modifier.padding(innerPadding)) { StatsScreen() }
