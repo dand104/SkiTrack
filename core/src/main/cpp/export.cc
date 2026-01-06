@@ -85,12 +85,12 @@ extern "C" {
             processor->UpdateSensors(c_types[i], c_v0[i], c_v1[i], c_v2[i], c_v3[i], c_time[i]);
         }
 
-        env->ReleasePrimitiveArrayCritical(types, c_types, 0);
-        env->ReleasePrimitiveArrayCritical(v0s, c_v0, 0);
-        env->ReleasePrimitiveArrayCritical(v1s, c_v1, 0);
-        env->ReleasePrimitiveArrayCritical(v2s, c_v2, 0);
-        env->ReleasePrimitiveArrayCritical(v3s, c_v3, 0);
-        env->ReleasePrimitiveArrayCritical(timestamps, c_time, 0);
+        env->ReleasePrimitiveArrayCritical(types, c_types, JNI_ABORT);
+        env->ReleasePrimitiveArrayCritical(v0s, c_v0, JNI_ABORT);
+        env->ReleasePrimitiveArrayCritical(v1s, c_v1, JNI_ABORT);
+        env->ReleasePrimitiveArrayCritical(v2s, c_v2, JNI_ABORT);
+        env->ReleasePrimitiveArrayCritical(v3s, c_v3, JNI_ABORT);
+        env->ReleasePrimitiveArrayCritical(timestamps, c_time, JNI_ABORT);
     }
 
     JNIEXPORT void JNICALL

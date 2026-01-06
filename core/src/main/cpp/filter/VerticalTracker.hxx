@@ -6,34 +6,31 @@
 namespace skitrace {
 
     class VerticalTracker {
-        public:
-            VerticalTracker();
+    public:
+        VerticalTracker();
 
-            void Initialize(double initialAltitude);
+        void Initialize(double initialAltitude, bool isBarometric);
 
-            void Predict(double accelZ, double dtSec);
+        void Predict(double accelZ, double dtSec);
 
-            void UpdateBarometer(double pressureAlt);
+        void UpdateBarometer(double pressureAlt);
 
-            void UpdateGPS(double gpsAlt);
+        void UpdateGPS(double gpsAlt, double verticalAccuracy);
 
-            double GetAltitude() const;
-            double GetVelocity() const;
+        double GetAltitude() const;
+        double GetVelocity() const;
 
-        private:
-            bool initialized_ = false;
+    private:
+        bool initialized_ = false;
 
-            // State vector: [Altitude, Velocity, AccelBias]
-            Eigen::Vector3d x_;
+        // State vector: [Altitude, Velocity, AccelBias, BaroBias]
+        Eigen::Vector4d x_;
 
-            // Covariance matrix
-            Eigen::Matrix3d P_;
+        // Covariance matrix
+        Eigen::Matrix4d P_;
 
-            // Process noise covariance
-            Eigen::Matrix3d Q_;
-
-            // Measurement matrices
-            Eigen::RowVector3d H_;
+        // Process noise covariance
+        Eigen::Matrix4d Q_;
     };
 
 }

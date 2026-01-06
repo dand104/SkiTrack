@@ -22,6 +22,15 @@ namespace skitrace {
                 H_ << 1.0, 0.0;
             }
 
+            /**
+             * Updates process noise variance (spectral density).
+             * Essential for Longitude filtering where degrees distance changes with Latitude.
+             * @param noiseVariance Variance of acceleration in units/s^2
+             */
+            void SetProcessNoise(double noiseVariance) {
+                processNoise_ = noiseVariance;
+            }
+
             void Predict(const double dt) {
                 if (dt <= 0) return;
 
@@ -33,15 +42,19 @@ namespace skitrace {
 
                 Eigen::Matrix2d Q;
                 const double dt2 = dt * dt;
-                double n = processNoise_;
-                Q << 0.25*dt2*dt2*n, 0.5*dt*dt2*n,
-                     0.5*dt*dt2*n,    dt2*n;
+                const double dt3 = dt2 * dt;
+                const double dt4 = dt2 * dt2;
+                
+                const double n = processNoise_;
+
+                Q << 0.25 * dt4 * n,  0.5 * dt3 * n,
+                     0.5 * dt3 * n,         dt2 * n;
 
                 P_ = F * P_ * F.transpose() + Q;
             }
 
             void Update(const double measurement, const double noiseVariance) {
-                double r = noiseVariance;
+                const double r = noiseVariance;
 
                 // S = H*P*H' + R
                 const double s = P_(0,0) + r;

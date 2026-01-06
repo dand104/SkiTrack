@@ -5,7 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.SystemClock
+import android.os.Handler
+import android.os.HandlerThread
 
 fun interface BatchSensorListener {
     fun onSensorBatch(
@@ -21,21 +22,29 @@ fun interface BatchSensorListener {
 
 class SensorClient(context: Context) {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
     private var listener: SensorEventListener? = null
-    private val bootTimeOffset = System.currentTimeMillis() - SystemClock.elapsedRealtime()
 
-    private val BATCH_SIZE = 50
+    private val MAX_REPORT_LATENCY_US = 5_000_000
+
+    private val BUFFER_SIZE = 300
+
     private var currentIndex = 0
 
-    private val typeArray = IntArray(BATCH_SIZE)
-    private val v0Array = FloatArray(BATCH_SIZE)
-    private val v1Array = FloatArray(BATCH_SIZE)
-    private val v2Array = FloatArray(BATCH_SIZE)
-    private val v3Array = FloatArray(BATCH_SIZE)
-    private val timeArray = LongArray(BATCH_SIZE)
+    private val typeArray = IntArray(BUFFER_SIZE)
+    private val v0Array = FloatArray(BUFFER_SIZE)
+    private val v1Array = FloatArray(BUFFER_SIZE)
+    private val v2Array = FloatArray(BUFFER_SIZE)
+    private val v3Array = FloatArray(BUFFER_SIZE)
+    private val timeArray = LongArray(BUFFER_SIZE)
 
     fun startListening(callback: BatchSensorListener) {
         stopListening()
+        sensorThread = HandlerThread("SkiTraceSensorThread").apply {
+            start()
+        }
+        sensorHandler = Handler(sensorThread!!.looper)
         currentIndex = 0
 
         listener = object : SensorEventListener {
@@ -47,15 +56,12 @@ class SensorClient(context: Context) {
                 v1Array[currentIndex] = if (event.values.size > 1) event.values[1] else 0f
                 v2Array[currentIndex] = if (event.values.size > 2) event.values[2] else 0f
                 v3Array[currentIndex] = if (event.values.size > 3) event.values[3] else 0f
-                timeArray[currentIndex] = bootTimeOffset + (event.timestamp / 1_000_000L)
+                timeArray[currentIndex] = event.timestamp
 
                 currentIndex++
 
-                if (currentIndex >= BATCH_SIZE) {
-                    callback.onSensorBatch(
-                        typeArray, v0Array, v1Array, v2Array, v3Array, timeArray, currentIndex
-                    )
-                    currentIndex = 0
+                if (currentIndex >= BUFFER_SIZE) {
+                    dispatchBatch(callback)
                 }
             }
 
@@ -67,17 +73,45 @@ class SensorClient(context: Context) {
         val rotation = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
             ?: sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
-        val delay = SensorManager.SENSOR_DELAY_UI
+        val samplingPeriodUs = SensorManager.SENSOR_DELAY_GAME
 
         listener?.let { l ->
-            linearAccel?.let { sensorManager.registerListener(l, it, delay) }
-            rotation?.let { sensorManager.registerListener(l, it, delay) }
-            pressure?.let { sensorManager.registerListener(l, it, SensorManager.SENSOR_DELAY_NORMAL) }
+            val handler = sensorHandler
+            linearAccel?.let {
+                sensorManager.registerListener(l, it, samplingPeriodUs, MAX_REPORT_LATENCY_US, handler)
+            }
+            rotation?.let {
+                sensorManager.registerListener(l, it, samplingPeriodUs, MAX_REPORT_LATENCY_US, handler)
+            }
+            pressure?.let {
+                sensorManager.registerListener(l, it, SensorManager.SENSOR_DELAY_NORMAL, MAX_REPORT_LATENCY_US,handler)
+            }
         }
     }
 
+    private fun dispatchBatch(callback: BatchSensorListener) {
+        if (currentIndex == 0) return
+
+        callback.onSensorBatch(
+            typeArray.copyOfRange(0, currentIndex),
+            v0Array.copyOfRange(0, currentIndex),
+            v1Array.copyOfRange(0, currentIndex),
+            v2Array.copyOfRange(0, currentIndex),
+            v3Array.copyOfRange(0, currentIndex),
+            timeArray.copyOfRange(0, currentIndex),
+            currentIndex
+        )
+        currentIndex = 0
+    }
+
     fun stopListening() {
-        listener?.let { sensorManager.unregisterListener(it) }
+        listener?.let { l ->
+            sensorManager.flush(l)
+            sensorManager.unregisterListener(l)
+        }
+        sensorThread?.quitSafely()
+        sensorThread = null
+        sensorHandler = null
         listener = null
         currentIndex = 0
     }

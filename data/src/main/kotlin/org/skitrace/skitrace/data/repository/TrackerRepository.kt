@@ -10,11 +10,11 @@ import kotlinx.coroutines.sync.withLock
 import org.skitrace.skitrace.core.TrackProcessor
 import org.skitrace.skitrace.core.model.SkiStatistics
 import org.skitrace.skitrace.core.model.TrackPoint
+import org.skitrace.skitrace.data.di.ServicesProvider
 import org.skitrace.skitrace.data.sensor.SensorClient
 import org.skitrace.skitrace.data.util.DefaultDispatcherProvider
 import org.skitrace.skitrace.data.util.DispatcherProvider
-import org.skitrace.skitrace.data.recognition.ActivityClient
-import org.skitrace.skitrace.data.di.ServicesProvider
+
 class TrackerRepository(
     context: Context,
     private val dispatchers: DispatcherProvider = DefaultDispatcherProvider()
@@ -46,6 +46,7 @@ class TrackerRepository(
                     }
                 }
             }
+
             launch {
                 activityClient.getActivityUpdates(5000L).collect { activity ->
                     nativeMutex.withLock {
@@ -53,24 +54,25 @@ class TrackerRepository(
                     }
                 }
             }
+
             locationClient.getLocationUpdates(1000L)
                 .flowOn(dispatchers.io)
                 .collect { location ->
-                    val now = System.currentTimeMillis()
-                    val (point, stats) = nativeMutex.withLock {
+                    nativeMutex.withLock {
+                        val timestampNs = location.elapsedRealtimeNanos
+
                         val p = trackProcessor.processPoint(
                             location.latitude,
                             location.longitude,
                             location.altitude,
                             location.accuracy.toDouble(),
-                            now
+                            timestampNs
                         )
                         val s = trackProcessor.getStatistics()
-                        p to s
-                    }
 
-                    _trackPoints.emit(point)
-                    _currentStats.emit(stats)
+                        _trackPoints.emit(p)
+                        _currentStats.emit(s)
+                    }
                 }
         }
     }

@@ -12,9 +12,12 @@ namespace skitrace {
 
     static constexpr int CONSISTENCY_THRESHOLD = 5;
     static constexpr double MIN_MOVE_SPEED = 0.8;
-    static constexpr double LIFT_ASCENT_RATE = 0.5;
+    static constexpr double LIFT_ASCENT_RATE = 0.8;
     static constexpr double SKI_DESCENT_RATE = -0.8;
     static constexpr double METERS_TO_DEGREES = 1.0 / 111132.0;
+
+    static constexpr double NS_TO_SEC = 1.0e-9;
+    static constexpr double NS_TO_MS = 1.0e-6;
 
     static constexpr int AR_IN_VEHICLE = 0;
     static constexpr int AR_ON_BICYCLE = 1;
@@ -93,10 +96,11 @@ namespace skitrace {
                 return;
             }
 
-            long long dtMs = timestamp - lastSensorTime_;
-            if (dtMs <= 0) return;
-            if (dtMs > 500) dtMs = 500;
-            const double dtSec = dtMs / 1000.0;
+            long long dtNs = timestamp - lastSensorTime_;
+            double dtSec = dtNs * NS_TO_SEC;
+            if (dtSec > 0.5) dtSec = 0.5;
+            if (dtSec <= 0) return;
+
             lastSensorTime_ = timestamp;
 
             double verticalAccel = 0.0;
@@ -107,11 +111,11 @@ namespace skitrace {
                 Eigen::Vector3d worldAccel = currentRotation_ * deviceAccel;
 
                 verticalAccel = worldAccel.z();
-            } else {
-                // Without rotation, we can't trust Z. Let's use Z as is but it's error-prone.
-                verticalAccel = v2;
-            }
 
+                if (std::abs(verticalAccel) < 0.05) {
+                    verticalAccel = 0.0;
+                }
+            }
             verticalTracker_->Predict(verticalAccel, dtSec);
         }
     }
@@ -182,47 +186,62 @@ namespace skitrace {
 
     GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt,
                                     const double accuracy,
-                                    const long long timestamp) {
+                                    const long long timestampNs) {
         const double sigma_deg = (accuracy < 2.0 ? 2.0 : accuracy) * METERS_TO_DEGREES;
-        const double r_variance_deg = sigma_deg * sigma_deg;
+
+        double cosLat = std::cos(lat * M_PI / 180.0);
+        if (cosLat < 0.0001) cosLat = 0.0001;
+
+        const double r_variance_lat = sigma_deg * sigma_deg;
+        const double r_variance_lon = (sigma_deg / cosLat) * (sigma_deg / cosLat);
 
         if (isFirstPoint_) {
             isFirstPoint_ = false;
-            startTime_ = timestamp;
-            lastTime_ = timestamp;
-            lastSensorTime_ = timestamp;
+            startTime_ = timestampNs;
+            lastTime_ = timestampNs;
+            lastSensorTime_ = timestampNs;
 
-            latFilter_ = std::make_unique<KalmanFilterCV>(lat, 1e-11);
-            lonFilter_ = std::make_unique<KalmanFilterCV>(lon, 1e-11);
-            verticalTracker_->Initialize(alt);
+            constexpr double baseProcessNoise = 8.0e-11;
 
-            lastFilteredPoint_ = {lat, lon, alt, timestamp};
+            latFilter_ = std::make_unique<KalmanFilterCV>(lat, baseProcessNoise);
+            lonFilter_ = std::make_unique<KalmanFilterCV>(lon, baseProcessNoise);
+
+            verticalTracker_->Initialize(alt, false);
+
+            lastFilteredPoint_ = {lat, lon, alt, timestampNs};
             return lastFilteredPoint_;
         }
 
-        const long long dtMs = timestamp - lastTime_;
-        const double dtSec = dtMs / 1000.0;
+        const long long dtNs = timestampNs - lastTime_;
+        const double dtSec = dtNs * NS_TO_SEC;
 
         if (dtSec > 0) {
+            if (std::abs(cosLat) > 0.01) {
+                lonFilter_->SetProcessNoise(8.0e-11 / (cosLat * cosLat));
+            }
+
             latFilter_->Predict(dtSec);
             lonFilter_->Predict(dtSec);
 
-            latFilter_->Update(lat, r_variance_deg);
-            lonFilter_->Update(lon, r_variance_deg);
+            latFilter_->Update(lat, r_variance_lat);
+            lonFilter_->Update(lon, r_variance_lon);
 
-            verticalTracker_->UpdateGPS(alt);
+            verticalTracker_->UpdateGPS(alt, accuracy);
 
             const GeoPoint newFilteredPoint = {
                     latFilter_->GetPosition(),
                     lonFilter_->GetPosition(),
                     verticalTracker_->GetAltitude(),
-                    timestamp
+                timestampNs
             };
 
             const double dist = GeoUtils::HaversineDistance(lastFilteredPoint_, newFilteredPoint);
             const double altDiff = newFilteredPoint.altitude - lastFilteredPoint_.altitude;
 
-            const double speed = GeoUtils::CalculateSpeed(dist, dtMs);
+            double speed = 0.0;
+            if (dtSec > 0.0001) {
+                speed = dist / dtSec;
+            }
             const double verticalVel = verticalTracker_->GetVelocity();
 
             UpdateState(speed, verticalVel);
@@ -246,7 +265,7 @@ namespace skitrace {
                 }
 
                 lastFilteredPoint_ = newFilteredPoint;
-                lastTime_ = timestamp;
+                lastTime_ = timestampNs;
             }
 
             return newFilteredPoint;
@@ -257,9 +276,11 @@ namespace skitrace {
 
     TrackStatistics TrackProcessor::GetStatistics() const {
         double avgSpeed = 0.0;
-        const long long duration = lastTime_ - startTime_;
-        if (duration > 0) {
-            avgSpeed = GeoUtils::CalculateSpeed(totalDistance_, duration);
+        const long long durationNs = lastTime_ - startTime_;
+        const double durationSec = durationNs * NS_TO_SEC;
+
+        if (durationSec > 0.1) {
+            avgSpeed = totalDistance_ / durationSec;
         }
 
         return TrackStatistics{
@@ -270,7 +291,7 @@ namespace skitrace {
             verticalAscent_,
             verticalTracker_->GetAltitude(),
             currentSpeed_,
-            duration,
+            static_cast<long long>(durationNs * NS_TO_MS),
             currentState_
         };
     }
