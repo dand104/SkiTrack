@@ -28,9 +28,9 @@ namespace skitrace {
     static constexpr double OUTLIER_HARD_SIGMA  = 10.0;
     static constexpr double OUTLIER_R_SCALE_MAX = 1.0e6;
 
-    static inline double ClampMin(double v, double mn) { return (v < mn) ? mn : v; }
+    inline double TrackProcessor::ClampMin(double v, double mn) { return (v < mn) ? mn : v; }
 
-    static double ComputeRScaleFromInnovation(double innovationMeters, double sigmaMeters) {
+    double TrackProcessor::ComputeRScaleFromInnovation(double innovationMeters, double sigmaMeters) {
         sigmaMeters = ClampMin(sigmaMeters, 1.0);
         const double k = std::abs(innovationMeters) / sigmaMeters;
 

@@ -46,6 +46,9 @@ namespace skitrace {
             bool isFirstPoint_{};
             GeoPoint lastFilteredPoint_{};
 
+            static inline double ClampMin(double v, double mn);
+            static double ComputeRScaleFromInnovation(double innovationMeters, double sigmaMeters);
+
             double totalDistance_{};
             double maxSpeed_{};
             double verticalDrop_{};
