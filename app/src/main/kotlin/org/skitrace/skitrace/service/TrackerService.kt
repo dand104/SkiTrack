@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
@@ -38,8 +39,11 @@ class TrackerService : Service() {
     }
 
     private fun startTracking() {
-        startForeground(NOTIFICATION_ID, buildNotification("Waiting for GPS..."))
-
+        startForeground(
+            NOTIFICATION_ID,
+            buildNotification("Waiting for GPS..."),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        )
         val repository = (application as SkiTraceApplication).trackerRepository
 
         repository.startTracking(serviceScope)

@@ -81,8 +81,10 @@ extern "C" {
         jfloat* c_v3 = static_cast<jfloat*>(env->GetPrimitiveArrayCritical(v3s, nullptr));
         jlong* c_time = static_cast<jlong*>(env->GetPrimitiveArrayCritical(timestamps, nullptr));
 
-        for (int i = 0; i < count; ++i) {
-            processor->UpdateSensors(c_types[i], c_v0[i], c_v1[i], c_v2[i], c_v3[i], c_time[i]);
+        if (c_types && c_v0 && c_v1 && c_v2 && c_v3 && c_time) {
+            for (int i = 0; i < count; ++i) {
+                processor->UpdateSensors(c_types[i], c_v0[i], c_v1[i], c_v2[i], c_v3[i], c_time[i]);
+            }
         }
 
         env->ReleasePrimitiveArrayCritical(types, c_types, JNI_ABORT);
