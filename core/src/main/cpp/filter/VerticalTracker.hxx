@@ -10,6 +10,7 @@ namespace skitrace {
         VerticalTracker();
 
         void Initialize(double initialAltitude, bool isBarometric);
+        bool IsInitialized() const;
 
         void Predict(double accelZ, double dtSec);
 

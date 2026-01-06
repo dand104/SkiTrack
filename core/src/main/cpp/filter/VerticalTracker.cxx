@@ -7,7 +7,6 @@ namespace skitrace {
     constexpr double SIGMA_BARO_BIAS_WALK = 0.01;
 
     constexpr double SIGMA_BARO_MEAS = 1.5;
-    constexpr double DEFAULT_SIGMA_GPS = 15.0;
 
     VerticalTracker::VerticalTracker() {
         x_.setZero();
@@ -23,8 +22,13 @@ namespace skitrace {
     void VerticalTracker::Initialize(double initialAltitude, bool isBarometric) {
         x_.setZero();
         x_(0) = initialAltitude;
+        x_(3) = 0.0;
 
         initialized_ = true;
+    }
+
+    bool VerticalTracker::IsInitialized() const {
+        return initialized_;
     }
 
     void VerticalTracker::Predict(double accelZ, double dt) {
@@ -68,7 +72,6 @@ namespace skitrace {
 
     void VerticalTracker::UpdateBarometer(const double pressureAlt) {
         if (!initialized_) {
-            Initialize(pressureAlt, true);
             return;
         }
 
@@ -77,13 +80,13 @@ namespace skitrace {
 
         const double R = SIGMA_BARO_MEAS * SIGMA_BARO_MEAS;
 
-        // Innovation
+        // Innovation: z - Hx
         double y = pressureAlt - (x_(0) + x_(3));
 
         // S = H*P*H' + R
         double S = (H * P_ * H.transpose())(0, 0) + R;
 
-        // Kalman Gain: K = P*H' * S^-1
+        // K = P*H' * S^-1
         Eigen::Vector4d K = P_ * H.transpose() / S;
 
         // Update State

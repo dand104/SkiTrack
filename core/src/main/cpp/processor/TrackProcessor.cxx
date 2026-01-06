@@ -21,7 +21,6 @@ namespace skitrace {
 
     static constexpr int AR_IN_VEHICLE = 0;
     static constexpr int AR_STILL = 3;
-    static constexpr int AR_UNKNOWN = 4;
 
     static constexpr double MAX_REASONABLE_SPEED = 45.0;
     static constexpr double OUTLIER_START_SIGMA = 3.0;
@@ -81,9 +80,10 @@ namespace skitrace {
                                         const long long timestamp) {
 
         if (sensorType == TYPE_PRESSURE) {
-            // v0 = pressure in hPa
-            const double alt = GeoUtils::PressureToAltitude(v0);
-            verticalTracker_->UpdateBarometer(alt);
+            if (verticalTracker_->IsInitialized()) {
+                const double alt = GeoUtils::PressureToAltitude(v0);
+                verticalTracker_->UpdateBarometer(alt);
+            }
         }
         else if (sensorType == TYPE_ROTATION_VECTOR || sensorType == TYPE_GAME_ROTATION_VECTOR) {
             double x = v0;
@@ -106,6 +106,11 @@ namespace skitrace {
         }
         else if (sensorType == TYPE_LINEAR_ACCELERATION) {
             if (lastSensorTime_ == 0) {
+                lastSensorTime_ = timestamp;
+                return;
+            }
+
+            if (!verticalTracker_->IsInitialized()) {
                 lastSensorTime_ = timestamp;
                 return;
             }
@@ -162,7 +167,7 @@ namespace skitrace {
             liftConsistentCount_++;
             dec(skiConsistentCount_);
             dec(idleConsistentCount_);
-            if (strongArSignal && lastActivityType_ == AR_IN_VEHICLE) liftConsistentCount_++; // bonus
+            if (strongArSignal && lastActivityType_ == AR_IN_VEHICLE) liftConsistentCount_++;
         }
         else if (desired == TrackState::SKIING) {
             skiConsistentCount_++;
@@ -173,7 +178,7 @@ namespace skitrace {
             idleConsistentCount_++;
             dec(liftConsistentCount_);
             dec(skiConsistentCount_);
-            if (strongArSignal && lastActivityType_ == AR_STILL) idleConsistentCount_++; // bonus
+            if (strongArSignal && lastActivityType_ == AR_STILL) idleConsistentCount_++;
         }
         else {
             dec(liftConsistentCount_);
