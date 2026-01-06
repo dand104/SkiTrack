@@ -20,13 +20,28 @@ namespace skitrace {
     static constexpr double NS_TO_MS = 1.0e-6;
 
     static constexpr int AR_IN_VEHICLE = 0;
-    static constexpr int AR_ON_BICYCLE = 1;
-    static constexpr int AR_ON_FOOT = 2;
     static constexpr int AR_STILL = 3;
     static constexpr int AR_UNKNOWN = 4;
-    static constexpr int AR_TILTING = 5;
-    static constexpr int AR_WALKING = 7;
-    static constexpr int AR_RUNNING = 8;
+
+    static constexpr double MAX_REASONABLE_SPEED = 45.0;
+    static constexpr double OUTLIER_START_SIGMA = 3.0;
+    static constexpr double OUTLIER_HARD_SIGMA  = 10.0;
+    static constexpr double OUTLIER_R_SCALE_MAX = 1.0e6;
+
+    static inline double ClampMin(double v, double mn) { return (v < mn) ? mn : v; }
+
+    static double ComputeRScaleFromInnovation(double innovationMeters, double sigmaMeters) {
+        sigmaMeters = ClampMin(sigmaMeters, 1.0);
+        const double k = std::abs(innovationMeters) / sigmaMeters;
+
+        if (k <= OUTLIER_START_SIGMA) return 1.0;
+        if (k >= OUTLIER_HARD_SIGMA)  return OUTLIER_R_SCALE_MAX;
+
+        const double t = (k / OUTLIER_START_SIGMA);
+        double scale = t * t;
+        if (scale > OUTLIER_R_SCALE_MAX) scale = OUTLIER_R_SCALE_MAX;
+        return scale;
+    }
 
     void TrackProcessor::UpdateActivity(const int type, const int confidence) {
         lastActivityType_ = type;
@@ -58,7 +73,6 @@ namespace skitrace {
 
         lastSensorTime_ = 0;
         verticalTracker_ = std::make_unique<VerticalTracker>();
-
         currentRotation_ = Eigen::Quaterniond::Identity();
         hasRotation_ = false;
     }
@@ -121,65 +135,59 @@ namespace skitrace {
     }
 
     void TrackProcessor::UpdateState(const double speedMs, const double verticalVel) {
-        // TODO: improve state machine
-
         const bool strongArSignal = lastActivityConfidence_ > 70;
-        bool looksLikeLift = verticalVel > LIFT_ASCENT_RATE;
-        if (strongArSignal && lastActivityType_ == AR_IN_VEHICLE) {
-            if (verticalVel > 0.2) looksLikeLift = true;
+
+        bool looksLift = verticalVel > LIFT_ASCENT_RATE;
+        const bool looksSki  = (verticalVel < SKI_DESCENT_RATE) || (speedMs > 4.0);
+        bool looksIdle = speedMs < MIN_MOVE_SPEED;
+
+        if (strongArSignal) {
+            if (lastActivityType_ == AR_IN_VEHICLE) {
+                if (verticalVel > 0.2) looksLift = true;
+            }
+            if (lastActivityType_ == AR_STILL) {
+                looksIdle = true;
+            }
         }
 
-        bool looksLikeSki = (verticalVel < SKI_DESCENT_RATE || speedMs > 4.0);
-        bool looksLikeIdle = speedMs < MIN_MOVE_SPEED;
+        TrackState desired = currentState_;
 
-        if (strongArSignal && lastActivityType_ == AR_STILL) {
-            looksLikeIdle = true;
-        }
+        if (looksLift && !looksIdle)      desired = TrackState::LIFT;
+        else if (looksSki && !looksIdle)  desired = TrackState::SKIING;
+        else if (looksIdle)              desired = TrackState::IDLE;
 
-        if (verticalVel > LIFT_ASCENT_RATE) {
+        auto dec = [](int& c) { if (c > 0) --c; };
+
+        if (desired == TrackState::LIFT) {
             liftConsistentCount_++;
-            skiConsistentCount_ = 0;
-            idleConsistentCount_ = 0;
+            dec(skiConsistentCount_);
+            dec(idleConsistentCount_);
+            if (strongArSignal && lastActivityType_ == AR_IN_VEHICLE) liftConsistentCount_++; // bonus
         }
-        else if (verticalVel < SKI_DESCENT_RATE || speedMs > 4.0) {
+        else if (desired == TrackState::SKIING) {
             skiConsistentCount_++;
-            liftConsistentCount_ = 0;
-            idleConsistentCount_ = 0;
+            dec(liftConsistentCount_);
+            dec(idleConsistentCount_);
         }
-        else if (speedMs < MIN_MOVE_SPEED) {
+        else if (desired == TrackState::IDLE) {
             idleConsistentCount_++;
-            liftConsistentCount_ = 0;
-            skiConsistentCount_ = 0;
+            dec(liftConsistentCount_);
+            dec(skiConsistentCount_);
+            if (strongArSignal && lastActivityType_ == AR_STILL) idleConsistentCount_++; // bonus
         }
         else {
-             if(liftConsistentCount_ > 0) liftConsistentCount_--;
-             if(skiConsistentCount_ > 0) skiConsistentCount_--;
-             if(idleConsistentCount_ > 0) idleConsistentCount_--;
+            dec(liftConsistentCount_);
+            dec(skiConsistentCount_);
+            dec(idleConsistentCount_);
         }
 
-        if (looksLikeLift) {
-            liftConsistentCount_ += (strongArSignal && lastActivityType_ == AR_IN_VEHICLE) ? 2 : 1;
-            skiConsistentCount_ = 0;
-            idleConsistentCount_ = 0;
-        }
-        else if (looksLikeSki) {
-            skiConsistentCount_++;
-            liftConsistentCount_ = 0;
-            idleConsistentCount_ = 0;
-        }
-        else if (looksLikeIdle) {
-            idleConsistentCount_ += (strongArSignal && lastActivityType_ == AR_STILL) ? 2 : 1;
-            liftConsistentCount_ = 0;
-            skiConsistentCount_ = 0;
-        }
-
-        if (liftConsistentCount_ > CONSISTENCY_THRESHOLD && currentState_ != TrackState::LIFT) {
+        if (liftConsistentCount_ > CONSISTENCY_THRESHOLD) {
             currentState_ = TrackState::LIFT;
         }
-        else if (skiConsistentCount_ > CONSISTENCY_THRESHOLD && currentState_ != TrackState::SKIING) {
+        else if (skiConsistentCount_ > CONSISTENCY_THRESHOLD) {
             currentState_ = TrackState::SKIING;
         }
-        else if (idleConsistentCount_ > CONSISTENCY_THRESHOLD && currentState_ != TrackState::IDLE) {
+        else if (idleConsistentCount_ > CONSISTENCY_THRESHOLD) {
             currentState_ = TrackState::IDLE;
         }
     }
@@ -187,13 +195,14 @@ namespace skitrace {
     GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt,
                                     const double accuracy,
                                     const long long timestampNs) {
-        const double sigma_deg = (accuracy < 2.0 ? 2.0 : accuracy) * METERS_TO_DEGREES;
+        const double sigma_m = (accuracy < 2.0 ? 2.0 : accuracy);
+        const double sigma_deg = sigma_m * METERS_TO_DEGREES;
 
         double cosLat = std::cos(lat * M_PI / 180.0);
         if (cosLat < 0.0001) cosLat = 0.0001;
 
-        const double r_variance_lat = sigma_deg * sigma_deg;
-        const double r_variance_lon = (sigma_deg / cosLat) * (sigma_deg / cosLat);
+        const double base_r_variance_lat = sigma_deg * sigma_deg;
+        const double base_r_variance_lon = (sigma_deg / cosLat) * (sigma_deg / cosLat);
 
         if (isFirstPoint_) {
             isFirstPoint_ = false;
@@ -216,6 +225,9 @@ namespace skitrace {
         const double dtSec = dtNs * NS_TO_SEC;
 
         if (dtSec > 0) {
+            lastTime_ = timestampNs;
+
+            const double dtPred = (dtSec > 1.5) ? 1.5 : dtSec;
             if (std::abs(cosLat) > 0.01) {
                 lonFilter_->SetProcessNoise(8.0e-11 / (cosLat * cosLat));
             }
@@ -223,10 +235,26 @@ namespace skitrace {
             latFilter_->Predict(dtSec);
             lonFilter_->Predict(dtSec);
 
-            latFilter_->Update(lat, r_variance_lat);
-            lonFilter_->Update(lon, r_variance_lon);
+            const double predLat = latFilter_->GetPosition();
+            const double predLon = lonFilter_->GetPosition();
 
-            verticalTracker_->UpdateGPS(alt, accuracy);
+            const GeoPoint predP{predLat, predLon, 0.0, timestampNs};
+            const GeoPoint measP{lat, lon, 0.0, timestampNs};
+            const double innovation_m = GeoUtils::HaversineDistance(predP, measP);
+
+            const double rScale = ComputeRScaleFromInnovation(innovation_m, sigma_m);
+
+            latFilter_->Update(lat, base_r_variance_lat * rScale);
+            lonFilter_->Update(lon, base_r_variance_lon * rScale);
+
+            const double sigmaV_base = std::max(15.0, sigma_m * 1.5);
+
+            const double predAlt = verticalTracker_->GetAltitude();
+            const double altInnovation = std::abs(alt - predAlt);
+            const double rScaleAlt = ComputeRScaleFromInnovation(altInnovation, sigmaV_base);
+            const double sigmaV_inflated = sigmaV_base * std::sqrt(rScaleAlt);
+
+            verticalTracker_->UpdateGPS(alt, sigmaV_inflated);
 
             const GeoPoint newFilteredPoint = {
                     latFilter_->GetPosition(),
@@ -245,7 +273,9 @@ namespace skitrace {
             const double verticalVel = verticalTracker_->GetVelocity();
 
             UpdateState(speed, verticalVel);
-            if (speed < 45.0) {
+            const bool speedOutlierForStats = (speed > MAX_REASONABLE_SPEED);
+
+            if (!speedOutlierForStats) {
                 currentSpeed_ = speed;
 
                 if (currentState_ != TrackState::IDLE) {
@@ -257,16 +287,11 @@ namespace skitrace {
                 }
 
                 if (std::abs(altDiff) > 0.1) {
-                    if (altDiff < 0) {
-                        verticalDrop_ += std::abs(altDiff);
-                    } else {
-                        verticalAscent_ += altDiff;
-                    }
+                    if (altDiff < 0) verticalDrop_ += std::abs(altDiff);
+                    else            verticalAscent_ += altDiff;
                 }
-
-                lastFilteredPoint_ = newFilteredPoint;
-                lastTime_ = timestampNs;
             }
+            lastFilteredPoint_ = newFilteredPoint;
 
             return newFilteredPoint;
         }
