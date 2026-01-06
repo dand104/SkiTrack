@@ -115,7 +115,7 @@ fun MapScreen(
                 onClick = {
                     scope.launch {
                         val currentPos = viewModel.cameraState.position
-                        viewModel.cameraState.animateTo(currentPos.copy(zoom = currentPos.zoom - 1))
+                        viewModel.cameraState.animateTo(currentPos.copy(zoom = currentPos.zoom + 1))
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -128,7 +128,7 @@ fun MapScreen(
                 onClick = {
                     scope.launch {
                         val currentPos = viewModel.cameraState.position
-                        viewModel.cameraState.animateTo(currentPos.copy(zoom = currentPos.zoom + 1))
+                        viewModel.cameraState.animateTo(currentPos.copy(zoom = currentPos.zoom - 1))
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
