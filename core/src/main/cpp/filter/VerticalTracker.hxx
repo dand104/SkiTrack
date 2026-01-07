@@ -7,7 +7,6 @@ namespace skitrace {
 
     class VerticalTracker {
     public:
-        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         VerticalTracker();
 
         void Initialize(double initialAltitude, bool isBarometric);

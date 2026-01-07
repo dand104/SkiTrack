@@ -11,7 +11,6 @@ namespace skitrace {
      */
     class KalmanFilterCV {
         public:
-            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
             KalmanFilterCV(const double initialPos, const double processNoise) {
                 x_ << initialPos, 0.0;
 
