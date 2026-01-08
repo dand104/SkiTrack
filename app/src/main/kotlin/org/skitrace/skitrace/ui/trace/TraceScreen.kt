@@ -4,10 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -15,12 +16,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import org.skitrace.skitrace.SkiTraceApplication
+import org.skitrace.skitrace.core.model.SkiStatistics
+import org.skitrace.skitrace.ui.theme.AppTypography
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -66,137 +77,244 @@ fun TraceScreen() {
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = formatDuration(stats.durationMs()),
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AnimatedContent(
-                    targetState = statusLabel,
-                    transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) }, label = "Status"
-                ) { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            MetricCard(
-                modifier = Modifier.weight(1f),
-                title = "Speed",
-                value = "%.1f".format(stats.currentSpeedMs() * 3.6),
-                unit = "km/h"
-            )
-            MetricCard(
-                modifier = Modifier.weight(1f),
-                title = "Altitude",
-                value = "%.0f".format(stats.currentAltitude()),
-                unit = "m"
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            MetricCard(
-                modifier = Modifier.weight(1f),
-                title = "Distance",
-                value = "%.2f".format(stats.totalDistanceMeters() / 1000.0),
-                unit = "km"
-            )
-            MetricCard(
-                modifier = Modifier.weight(1f),
-                title = "Vert. Drop",
-                value = "%.0f".format(stats.verticalDropMeters()),
-                unit = "m"
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        val buttonColor by animateColorAsState(
-            if (isTracking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            label = "BtnColor"
-        )
-
-        Button(
-            onClick = { viewModel.toggleTracking() },
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .size(96.dp)
-                .padding(bottom = 16.dp),
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-            elevation = ButtonDefaults.buttonElevation(8.dp)
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                imageVector = if (isTracking) Icons.Default.Stop else Icons.Default.PlayArrow,
-                contentDescription = if (isTracking) "Stop" else "Start",
-                modifier = Modifier.size(48.dp)
+            StatusChip(statusLabel)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val speedVal = (stats.currentSpeedMs * 3.6)
+
+                RollingNumber(
+                    value = speedVal,
+                    style = AppTypography.displayLarge,
+                    format = "%.0f"
+                )
+                Text(
+                    text = "km/h",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            SecondaryMetricsGrid(stats)
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            HoldToInteractButton(
+                isTracking = isTracking,
+                onToggle = { viewModel.toggleTracking() },
+                modifier = Modifier.padding(bottom = 32.dp)
             )
         }
     }
 }
 
 @Composable
-fun MetricCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    value: String,
-    unit: String
-) {
-    Card(
-        modifier = modifier,
-        elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+fun StatusChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(50),
+        modifier = Modifier.padding(top = 16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+fun SecondaryMetricsGrid(stats: SkiStatistics) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            CompactMetricItem(
+                value = stats.currentAltitude,
+                label = "Altitude",
+                unit = "m",
+                format = "%.0f"
             )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = unit,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            CompactMetricItem(
+                value = stats.verticalDropMeters,
+                label = "Vert. Drop",
+                unit = "m",
+                format = "%.0f"
             )
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            CompactMetricItem(
+                value = stats.totalDistanceMeters / 1000.0,
+                label = "Distance",
+                unit = "km",
+                format = "%.1f"
+            )
+            val durationStr = formatDuration(stats.durationMs)
+            MetricStaticItem(
+                value = durationStr,
+                label = "Duration"
+            )
+        }
+    }
+}
+
+@Composable
+fun CompactMetricItem(
+    value: Double,
+    label: String,
+    unit: String,
+    format: String
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        RollingNumber(
+            value = value,
+            style = AppTypography.displayMedium,
+            format = format
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun MetricStaticItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = AppTypography.displayMedium,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+
+@Composable
+fun RollingNumber(
+    value: Double,
+    style: androidx.compose.ui.text.TextStyle,
+    format: String,
+    modifier: Modifier = Modifier
+) {
+    val animatedValue by animateFloatAsState(
+        targetValue = value.toFloat(),
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "rolling_number"
+    )
+
+    val text = remember(animatedValue, format) {
+        format.format(animatedValue)
+    }
+
+    Text(
+        text = text,
+        style = style,
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+}
+
+@Composable
+fun HoldToInteractButton(
+    isTracking: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val scope = rememberCoroutineScope()
+
+    val holdDuration = 1000L
+
+    var isPressed by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val errorColor = MaterialTheme.colorScheme.error
+    val containerColor = if (isTracking) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primaryContainer
+    val iconColor = if (isTracking) errorColor else MaterialTheme.colorScheme.onPrimaryContainer
+
+    val scale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "scale")
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            val startTime = System.currentTimeMillis()
+            while (isPressed && progress < 1f) {
+                val elapsed = System.currentTimeMillis() - startTime
+                progress = (elapsed.toFloat() / holdDuration).coerceAtMost(1f)
+                if (progress >= 1f) {
+                    onToggle()
+                    isPressed = false
+                }
+                delay(16)
+            }
+        } else {
+            while (progress > 0f) {
+                progress = (progress - 0.1f).coerceAtLeast(0f)
+                delay(16)
+            }
+        }
+    }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(110.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(40.dp))
+            .background(containerColor)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        if (isTracking) {
+                            isPressed = true
+                            tryAwaitRelease()
+                            isPressed = false
+                        } else {
+                            onToggle()
+                        }
+                    }
+                )
+            }
+            .drawBehind {
+                if (isTracking && progress > 0f) {
+                    drawArc(
+                        color = errorColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * progress,
+                        useCenter = false,
+                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
+                        size = Size(size.width - 12.dp.toPx(), size.height - 12.dp.toPx()),
+                        topLeft = Offset(6.dp.toPx(), 6.dp.toPx())
+                    )
+                }
+            }
+    ) {
+        Icon(
+            imageVector = if (isTracking) Icons.Default.Stop else Icons.Default.PlayArrow,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(48.dp)
+        )
     }
 }
 
@@ -205,8 +323,8 @@ private fun formatDuration(millis: Long): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
     val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
     return if (hours > 0) {
-        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        "%02d:%02d:%02d".format(hours, minutes, seconds)
     } else {
-        String.format("%02d:%02d", minutes, seconds)
+        "%02d:%02d".format(minutes, seconds)
     }
 }
