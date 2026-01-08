@@ -1,8 +1,6 @@
 add_library(
-        skitrace-core-native
-        SHARED
-        # JNI Exports
-        export.cc
+        skitrace-core-modules
+        OBJECT
         # Math module
         math/GeoUtils.cxx
         # Processor module
@@ -11,7 +9,16 @@ add_library(
         filter/VerticalTracker.cxx
 )
 
+target_include_directories(skitrace-core-modules PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
 if (ANDROID)
+    add_library(
+            skitrace-core-native
+            SHARED
+            JNIExport.cc
+            $<TARGET_OBJECTS:skitrace-core-modules>
+    )
     target_link_options(skitrace-core-native PRIVATE "-Wl,-z,max-page-size=16384")
     find_library(
             log-lib
@@ -20,17 +27,24 @@ if (ANDROID)
     target_link_libraries(
             skitrace-core-native
             ${log-lib}
+            skitrace-core-modules
+    )
+else()
+    add_library(
+            skitrace-core-native
+            STATIC
+            $<TARGET_OBJECTS:skitrace-core-modules> )
+    target_link_libraries(
+            skitrace-core-native
+            skitrace-core-modules
     )
 endif()
 
-
-
-
-target_include_directories(skitrace-core-native PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-)
+if(WIN32)
+    target_compile_definitions(skitrace-core-modules PRIVATE _USE_MATH_DEFINES)
+endif()
 
 target_link_libraries(
-        skitrace-core-native
+        skitrace-core-modules PUBLIC
         Eigen3::Eigen
 )

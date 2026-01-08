@@ -1,5 +1,4 @@
 # dependencies script
-include(FetchContent)
 message(STATUS "Loading external dependencies...")
 # Eigen3
 FetchContent_Declare(
@@ -11,3 +10,4 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(Eigen3)
+
