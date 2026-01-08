@@ -78,7 +78,7 @@ class TrackerRepository(
             locationClient.getLocationUpdates(1000L)
                 .flowOn(dispatchers.io)
                 .collect { location ->
-                    nativeMutex.withLock {
+                    val (point, stats) = nativeMutex.withLock {
                         val timestampNs = location.elapsedRealtimeNanos
                         val p = trackProcessor.processPoint(
                             location.latitude,
@@ -88,21 +88,21 @@ class TrackerRepository(
                             timestampNs
                         )
                         val s = trackProcessor.getStatistics()
+                        p to s
+                    }
+                    _trackPoints.emit(point)
+                    _currentStats.emit(stats)
 
-                        _trackPoints.emit(p)
-                        _currentStats.emit(s)
-
-                        currentRunId?.let { runId ->
-                            trackDao.insertPoint(
-                                TrackPointEntity(
-                                    runId = runId,
-                                    latitude = p.latitude(),
-                                    longitude = p.longitude(),
-                                    altitude = p.altitude(),
-                                    timestamp = System.currentTimeMillis()
-                                )
+                    currentRunId?.let { runId ->
+                        trackDao.insertPoint(
+                            TrackPointEntity(
+                                runId = runId,
+                                latitude = point.latitude(),
+                                longitude = point.longitude(),
+                                altitude = point.altitude(),
+                                timestamp = System.currentTimeMillis()
                             )
-                        }
+                        )
                     }
                 }
         }
