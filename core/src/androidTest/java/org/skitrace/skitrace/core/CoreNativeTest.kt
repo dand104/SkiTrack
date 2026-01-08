@@ -6,5 +6,4 @@ import org.junit.runner.RunWith
 
 @RunWith(GtestRunner::class)
 @TargetLibrary(libraryName = "skitrace_tests")
-class NativeUnitTest {
-}
+class CoreNativeTest
