@@ -108,9 +108,7 @@ fun MainApp() {
                 MapScreen(contentPadding = innerPadding)
             }
             composable(Screen.Stats.route) {
-                Box(Modifier.padding(innerPadding)) {
-                    StatsScreen()
-                }
+                StatsScreen(contentPadding = innerPadding)
             }
         }
     }

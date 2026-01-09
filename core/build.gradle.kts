@@ -45,7 +45,7 @@ android {
 
 dependencies {
     // Test deps
-    debugImplementation("androidx.test.ext:junit-gtest:1.0.0-alpha01")
+    debugImplementation("androidx.test.ext:junit-gtest:1.0.0-alpha02")
     debugImplementation("com.android.ndk.thirdparty:googletest:1.11.0-beta-1")
     androidTestImplementation("androidx.test:runner:1.7.0")
     testImplementation("junit:junit:4.13.2")

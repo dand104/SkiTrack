@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,7 +22,9 @@ import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen() {
+fun StatsScreen(
+    contentPadding: PaddingValues = PaddingValues(0.dp)
+) {
     val context = LocalContext.current
     val app = context.applicationContext as SkiTraceApplication
     val viewModel: StatsViewModel = viewModel(
@@ -29,23 +32,35 @@ fun StatsScreen() {
     )
 
     val state by viewModel.uiState.collectAsState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             LargeTopAppBar(
                 title = { Text("History") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                )
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
         LazyColumn(
-            contentPadding = innerPadding,
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding(),
+                bottom = contentPadding.calculateBottomPadding() + 16.dp,
+                start = 0.dp,
+                end = 0.dp
+            )
         ) {
             item {
+                Spacer(Modifier.height(16.dp))
                 LifetimeSummaryExpressive(state)
                 Spacer(Modifier.height(24.dp))
             }
