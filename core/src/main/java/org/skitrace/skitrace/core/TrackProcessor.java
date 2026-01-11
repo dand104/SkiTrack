@@ -28,7 +28,7 @@ public class TrackProcessor implements AutoCloseable {
                 .order(ByteOrder.nativeOrder())
                 .asDoubleBuffer();
 
-        statsOutputBuffer = ByteBuffer.allocateDirect(9 * 8)
+        statsOutputBuffer = ByteBuffer.allocateDirect(11 * 8)
                 .order(ByteOrder.nativeOrder())
                 .asDoubleBuffer();
     }
@@ -47,7 +47,8 @@ public class TrackProcessor implements AutoCloseable {
         return new SkiStatistics(
                 statsOutputBuffer.get(0), statsOutputBuffer.get(1), statsOutputBuffer.get(2),
                 statsOutputBuffer.get(3), statsOutputBuffer.get(4), statsOutputBuffer.get(5),
-                statsOutputBuffer.get(6), (long) statsOutputBuffer.get(7),
+                statsOutputBuffer.get(6), (long) statsOutputBuffer.get(7), 
+                (long) statsOutputBuffer.get(9), (long) statsOutputBuffer.get(10),
                 TrackState.fromInt((int) statsOutputBuffer.get(8))
         );
     }

@@ -61,8 +61,10 @@ extern "C" {
         outData[4] = s.verticalAscent;
         outData[5] = s.currentAltitude;
         outData[6] = s.currentSpeed;
-        outData[7] = static_cast<double>(s.durationMs);
+        outData[7] = static_cast<double>(s.totalDurationMs);
         outData[8] = static_cast<double>(s.currentState);
+        outData[9] = static_cast<double>(s.skiingDurationMs);
+        outData[10] = static_cast<double>(s.liftDurationMs);
     }
 
     JNIEXPORT void JNICALL

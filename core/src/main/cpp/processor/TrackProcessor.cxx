@@ -59,6 +59,8 @@ namespace skitrace {
         verticalDrop_ = 0.0;
         verticalAscent_ = 0.0;
         currentSpeed_ = 0.0;
+        skiingDurationNs_ = 0;
+        liftDurationNs_ = 0;
         startTime_ = 0;
         lastTime_ = 0;
 
@@ -278,6 +280,11 @@ namespace skitrace {
             const double verticalVel = verticalTracker_->GetVelocity();
 
             UpdateState(speed, verticalVel);
+            if (currentState_ == TrackState::SKIING) {
+                skiingDurationNs_ += dtNs;
+            } else if (currentState_ == TrackState::LIFT) {
+                liftDurationNs_ += dtNs;
+            }
             const bool speedOutlierForStats = (speed > MAX_REASONABLE_SPEED);
 
             if (!speedOutlierForStats) {
@@ -322,6 +329,8 @@ namespace skitrace {
             verticalTracker_->GetAltitude(),
             currentSpeed_,
             static_cast<long long>(durationNs * NS_TO_MS),
+            static_cast<long long>(skiingDurationNs_ * NS_TO_MS),
+            static_cast<long long>(liftDurationNs_ * NS_TO_MS),
             currentState_
         };
     }

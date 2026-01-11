@@ -15,6 +15,7 @@ import org.skitrace.skitrace.data.db.SkiDatabase
 import org.skitrace.skitrace.data.db.entity.TrackPointEntity
 import org.skitrace.skitrace.data.db.entity.TrackRunEntity
 import org.skitrace.skitrace.data.di.ServicesProvider
+import org.skitrace.skitrace.data.export.GpxExporter
 import org.skitrace.skitrace.data.sensor.SensorClient
 import org.skitrace.skitrace.data.util.DefaultDispatcherProvider
 import org.skitrace.skitrace.data.util.DispatcherProvider
@@ -33,6 +34,7 @@ class TrackerRepository(
     private val trackDao = database.trackDao()
 
     private val _currentStats = MutableStateFlow(SkiStatistics())
+    private val gpxExporter = GpxExporter(context, database, dispatchers)
     val currentStats: StateFlow<SkiStatistics> = _currentStats.asStateFlow()
 
     private val _isTracking = MutableStateFlow(false)
@@ -48,6 +50,10 @@ class TrackerRepository(
     val totalLifetimeDistance = trackDao.getTotalDistance().map { it ?: 0.0 }
     val maxLifetimeSpeed = trackDao.getMaxSpeed().map { it ?: 0.0 }
     val totalLifetimeVertical = trackDao.getTotalVerticalDrop().map { it ?: 0.0 }
+
+    suspend fun exportRun(runId: Long): android.net.Uri? {
+        return gpxExporter.exportRunToGpx(runId)
+    }
 
     fun startTracking(scope: CoroutineScope) {
         if (_isTracking.value) return
@@ -100,7 +106,10 @@ class TrackerRepository(
                                 latitude = point.latitude(),
                                 longitude = point.longitude(),
                                 altitude = point.altitude(),
-                                timestamp = System.currentTimeMillis()
+                                timestamp = System.currentTimeMillis(),
+                                speedMs = stats.currentSpeedMs(),
+                                accuracy = location.accuracy.toDouble(),
+                                stateCode = stats.state().value
                             )
                         )
                     }
@@ -122,13 +131,15 @@ class TrackerRepository(
 
                 val runEntity = TrackRunEntity(
                     id = runId,
-                    startTime = System.currentTimeMillis() - finalStats.durationMs(),
+                    startTime = System.currentTimeMillis() - finalStats.totalDurationMs(),
                     endTime = System.currentTimeMillis(),
                     totalDistance = finalStats.totalDistanceMeters(),
                     maxSpeed = finalStats.maxSpeedMs(),
                     avgSpeed = finalStats.avgSpeedMs(),
                     verticalDrop = finalStats.verticalDropMeters(),
-                    durationMs = finalStats.durationMs()
+                    durationMs = finalStats.totalDurationMs(),
+                    activeSkiingMs = finalStats.skiingDurationMs(),
+                    liftMs = finalStats.liftDurationMs()
                 )
                 trackDao.updateRun(runEntity)
                 currentRunId = null

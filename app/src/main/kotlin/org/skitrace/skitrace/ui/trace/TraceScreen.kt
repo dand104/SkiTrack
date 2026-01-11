@@ -160,7 +160,7 @@ fun SecondaryMetricsGrid(stats: SkiStatistics) {
                 unit = "km",
                 format = "%.1f"
             )
-            val durationStr = formatDuration(stats.durationMs)
+            val durationStr = formatDuration(stats.totalDurationMs)
             MetricStaticItem(
                 value = durationStr,
                 label = "Duration"

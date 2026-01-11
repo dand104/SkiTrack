@@ -23,10 +23,10 @@ abstract class SkiDatabase : RoomDatabase() {
         fun getDatabase(context: Context): SkiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    SkiDatabase::class.java,
-                    "skitrace_db"
-                ).build()
+                                context.applicationContext,
+                                SkiDatabase::class.java,
+                                "skitrace_db"
+                            ).fallbackToDestructiveMigration(false).build()
                 INSTANCE = instance
                 instance
             }

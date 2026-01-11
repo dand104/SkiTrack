@@ -24,7 +24,9 @@ namespace skitrace {
         double verticalAscent;
         double currentAltitude;
         double currentSpeed;
-        long long durationMs;
+        long long totalDurationMs;
+        long long skiingDurationMs;
+        long long liftDurationMs;
         TrackState currentState;
     };
 
@@ -54,6 +56,8 @@ namespace skitrace {
             double verticalDrop_{};
             double verticalAscent_{};
             long long startTime_{};
+            long long skiingDurationNs_{};
+            long long liftDurationNs_{};
             long long lastTime_{};
             double currentSpeed_{};
             TrackState currentState_ = TrackState::IDLE;

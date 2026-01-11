@@ -13,5 +13,7 @@ data class TrackRunEntity(
     val avgSpeed: Double = 0.0,
     val verticalDrop: Double = 0.0,
     val durationMs: Long = 0,
+    val activeSkiingMs: Long = 0,
+    val liftMs: Long = 0,
     val note: String? = null
 )
