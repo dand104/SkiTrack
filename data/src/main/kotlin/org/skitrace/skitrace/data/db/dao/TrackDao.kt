@@ -31,6 +31,9 @@ interface TrackDao {
 
     @Query("SELECT * FROM track_runs WHERE id = :id")
     suspend fun getRunById(id: Long): TrackRunEntity?
+    
+    @Query("DELETE FROM track_runs WHERE id = :id")
+    suspend fun deleteRunById(id: Long)
 
     @Query("SELECT * FROM track_points WHERE runId = :runId ORDER BY timestamp ASC")
     suspend fun getPointsForRun(runId: Long): List<TrackPointEntity>

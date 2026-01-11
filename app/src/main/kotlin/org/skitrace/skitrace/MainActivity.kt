@@ -22,11 +22,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import org.skitrace.skitrace.ui.details.TrackDetailsScreen
 import org.skitrace.skitrace.ui.map.MapScreen
+import org.skitrace.skitrace.ui.settings.SettingsScreen
 import org.skitrace.skitrace.ui.stats.StatsScreen
 import org.skitrace.skitrace.ui.theme.SkiTraceTheme
 import org.skitrace.skitrace.ui.trace.TraceScreen
@@ -56,12 +60,16 @@ fun MainApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val isMapScreen = currentRoute == Screen.Map.route
+    
+    // Show BottomBar only on main screens
+    val showBottomBar = screens.any { it.route == currentRoute }
 
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
-            val navBarContainerColor = if (isMapScreen) {
-                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.75f)
+            if (showBottomBar) {
+                val navBarContainerColor = if (isMapScreen) {
+                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f)
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
             }
@@ -90,6 +98,7 @@ fun MainApp() {
                     )
                 }
             }
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -108,7 +117,21 @@ fun MainApp() {
                 MapScreen(contentPadding = innerPadding)
             }
             composable(Screen.Stats.route) {
-                StatsScreen(contentPadding = innerPadding)
+                StatsScreen(
+                    contentPadding = innerPadding,
+                    onNavigateToSettings = { navController.navigate("settings") },
+                    onNavigateToDetails = { runId -> navController.navigate("details/$runId") }
+                )
+            }
+            composable("settings") {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                route = "details/{runId}",
+                arguments = listOf(navArgument("runId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val runId = backStackEntry.arguments?.getLong("runId") ?: return@composable
+                TrackDetailsScreen(runId = runId, onBack = { navController.popBackStack() })
             }
         }
     }

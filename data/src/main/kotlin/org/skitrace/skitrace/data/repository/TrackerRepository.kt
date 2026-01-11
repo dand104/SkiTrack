@@ -40,7 +40,7 @@ class TrackerRepository(
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
-    private val _trackPoints = MutableSharedFlow<TrackPoint>(replay = 1)
+    private val _trackPoints = MutableSharedFlow<TrackPoint>(replay = 0)
     val trackPoints: SharedFlow<TrackPoint> = _trackPoints.asSharedFlow()
 
     private var trackingJob: Job? = null
@@ -50,6 +50,14 @@ class TrackerRepository(
     val totalLifetimeDistance = trackDao.getTotalDistance().map { it ?: 0.0 }
     val maxLifetimeSpeed = trackDao.getMaxSpeed().map { it ?: 0.0 }
     val totalLifetimeVertical = trackDao.getTotalVerticalDrop().map { it ?: 0.0 }
+
+    suspend fun getRun(id: Long) = trackDao.getRunById(id)
+    suspend fun getRunPoints(id: Long) = trackDao.getPointsForRun(id)
+    suspend fun deleteRun(id: Long) = trackDao.deleteRunById(id)
+    suspend fun updateRunTitle(id: Long, title: String) {
+        val run = trackDao.getRunById(id)
+        if (run != null) trackDao.updateRun(run.copy(note = title))
+    }
 
     suspend fun exportRun(runId: Long): android.net.Uri? {
         return gpxExporter.exportRunToGpx(runId)

@@ -1,19 +1,31 @@
 package org.skitrace.skitrace.ui.stats
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import org.skitrace.skitrace.SkiTraceApplication
 import org.skitrace.skitrace.data.db.entity.TrackRunEntity
 import java.text.SimpleDateFormat
@@ -23,16 +35,86 @@ import java.util.concurrent.TimeUnit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDetails: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as SkiTraceApplication
     val viewModel: StatsViewModel = viewModel(
         factory = StatsViewModel.Factory(app.trackerRepository)
     )
-
     val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    var showDataModal by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState()
+
+    val gpxPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            Toast.makeText(context, "Importing...", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    if (showDataModal) {
+        ModalBottomSheet(
+            onDismissRequest = { showDataModal = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    text = "Data Management",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = "Backup your adventures or import new tracks.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    ExpressiveOptionCard(
+                        title = "Export GPX",
+                        subtitle = "Save all tracks",
+                        icon = Icons.Default.Upload,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            scope.launch { sheetState.hide() }.invokeOnCompletion { showDataModal = false }
+                        }
+                    )
+                    ExpressiveOptionCard(
+                        title = "Import GPX",
+                        subtitle = "Load from file",
+                        icon = Icons.Default.Download,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            gpxPickerLauncher.launch(arrayOf("*/*"))
+                            scope.launch { sheetState.hide() }.invokeOnCompletion { showDataModal = false }
+                        }
+                    )
+                }
+            }
+        }
+    }
 
     Scaffold(
         modifier = Modifier
@@ -46,7 +128,15 @@ fun StatsScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
-                scrollBehavior = scrollBehavior
+                scrollBehavior = scrollBehavior,
+                actions = {
+                    IconButton(onClick = { showDataModal = true }) {
+                        Icon(Icons.Default.Description, contentDescription = "Data")
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -64,13 +154,68 @@ fun StatsScreen(
                 LifetimeSummaryExpressive(state)
                 Spacer(Modifier.height(24.dp))
             }
-
             items(state.runs) { run ->
-                ExpressiveRunCard(run)
+                ExpressiveRunCard(run, onClick = { onNavigateToDetails(run.id) })
                 Spacer(Modifier.height(12.dp))
             }
-
             item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+fun ExpressiveOptionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(140.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Surface(
+                color = contentColor.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = contentColor
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = contentColor.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }
@@ -142,21 +287,21 @@ fun BigStat(value: String, unit: String, label: String) {
 }
 
 @Composable
-fun ExpressiveRunCard(run: TrackRunEntity) {
+fun ExpressiveRunCard(run: TrackRunEntity, onClick: () -> Unit) {
     val dateFormat = SimpleDateFormat("EEEE, d MMM", Locale.getDefault())
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: Date and Duration
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -164,17 +309,14 @@ fun ExpressiveRunCard(run: TrackRunEntity) {
             ) {
                 Column {
                     Text(
-                        text = dateFormat.format(Date(run.startTime)),
+                        text = run.note ?: dateFormat.format(Date(run.startTime)),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        text = timeFormat.format(Date(run.startTime)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (!run.note.isNullOrEmpty()) {
+                        Text(text = dateFormat.format(Date(run.startTime)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-
                 Surface(
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = RoundedCornerShape(8.dp)
@@ -187,11 +329,9 @@ fun ExpressiveRunCard(run: TrackRunEntity) {
                     )
                 }
             }
-
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(Modifier.height(16.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
