@@ -44,7 +44,7 @@ protected:
 };
 
 TEST_F(TrackProcessorTest, InitialState_IsIdle) {
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
     EXPECT_EQ(stats.currentState, TrackState::IDLE);
     EXPECT_DOUBLE_EQ(stats.totalDistance, 0.0);
 }
@@ -67,7 +67,7 @@ TEST_F(TrackProcessorTest, Scenario_GPSDrift_StayIdle) {
         ts += SEC_TO_NS;
     }
 
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
 
     EXPECT_EQ(stats.currentState, TrackState::IDLE);
     EXPECT_LT(stats.avgSpeed, 0.5);
@@ -83,7 +83,7 @@ TEST_F(TrackProcessorTest, DetectSkiing_DownhillFast) {
     // State swithc test
     SimulateTrack(10, 50.0005, 0.0001, 1990.0, -2.0, ts + 5000000000LL, 1000000000LL);
     
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
     EXPECT_EQ(stats.currentState, TrackState::SKIING);
     EXPECT_GT(stats.currentSpeed, 5.0);
     EXPECT_GT(stats.verticalDrop, 10.0);
@@ -96,7 +96,7 @@ TEST_F(TrackProcessorTest, DetectLift_UphillSlow) {
 
     SimulateTrack(20, 50.00015, 0.00003, 1015.0, 3.0, ts + 5000000000LL, 1000000000LL);
 
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
     EXPECT_EQ(stats.currentState, TrackState::LIFT);
     EXPECT_GT(stats.verticalAscent, 10.0);
 }
@@ -113,7 +113,7 @@ TEST_F(TrackProcessorTest, DetectIdle_Stationary) {
         ts += 1000000000LL;
     }
     
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
     EXPECT_EQ(stats.currentState, TrackState::IDLE);
     EXPECT_LT(stats.currentSpeed, 1.0);
 }
@@ -128,7 +128,7 @@ TEST_F(TrackProcessorTest, Statistics_DistanceAccumulation) {
         ts += 1000000000LL; // 1 sec
     }
     
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
     EXPECT_EQ(stats.currentState, TrackState::SKIING);
     EXPECT_GT(stats.totalDistance, 100.0); 
     EXPECT_GT(stats.maxSpeed, 0.0);
@@ -156,7 +156,7 @@ TEST_F(TrackProcessorTest, Scenario_GPSGlitch_Rejection) {
         ts += SEC_TO_NS;
     }
 
-    TrackStatistics stats = processor.GetStatistics();
+    TrackStatistics stats = processor.fetchTrackData();
 
     EXPECT_LT(stats.maxSpeed, 50.0);
 }
@@ -175,7 +175,7 @@ TEST_F(TrackProcessorTest, Scenario_FullDay_Cycle) {
         ts += SEC_TO_NS;
     }
 
-    const TrackStatistics statsPhase1 = processor.GetStatistics();
+    const TrackStatistics statsPhase1 = processor.fetchTrackData();
     EXPECT_EQ(statsPhase1.currentState, TrackState::LIFT);
     EXPECT_NEAR(statsPhase1.verticalAscent, 90.0, 10.0);
     EXPECT_NEAR(statsPhase1.verticalDrop, 0.0, 1.0);
@@ -187,7 +187,7 @@ TEST_F(TrackProcessorTest, Scenario_FullDay_Cycle) {
         ts += SEC_TO_NS;
     }
 
-    TrackStatistics statsPhase2 = processor.GetStatistics();
+    TrackStatistics statsPhase2 = processor.fetchTrackData();
     EXPECT_EQ(statsPhase2.currentState, TrackState::IDLE);
 
     // 3: SKIING (fast)
@@ -199,7 +199,7 @@ TEST_F(TrackProcessorTest, Scenario_FullDay_Cycle) {
         ts += SEC_TO_NS;
     }
 
-    TrackStatistics statsPhase3 = processor.GetStatistics();
+    TrackStatistics statsPhase3 = processor.fetchTrackData();
     EXPECT_EQ(statsPhase3.currentState, TrackState::SKIING);
 
     EXPECT_NEAR(statsPhase3.verticalAscent, 90.0, 10.0);

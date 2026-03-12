@@ -37,7 +37,7 @@ namespace skitrace {
 
             GeoPoint AddPoint(double lat, double lon, double alt, double accuracy, long long timestamp);
 
-            [[nodiscard]] TrackStatistics GetStatistics() const;
+            [[nodiscard]] TrackStatistics fetchTrackData() const;
             void UpdateSensors(int sensorType, float v0, float v1, float v2, float v3, long long timestamp);
             void UpdateActivity(int type, int confidence);
 

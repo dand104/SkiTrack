@@ -6,24 +6,24 @@ using namespace skitrace;
 extern "C" {
 
     JNIEXPORT jlong JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_createNativeProcessor(JNIEnv *env, jobject thiz) {
+    Java_org_skitrace_skitrace_core_TrackProcessor_createProcessor(JNIEnv *env, jobject thiz) {
         return reinterpret_cast<jlong>(new TrackProcessor());
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_destroyNativeProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
+    Java_org_skitrace_skitrace_core_TrackProcessor_destroyProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
         const auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         delete processor;
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_resetNative(JNIEnv *env, jobject thiz, jlong ptr) {
+    Java_org_skitrace_skitrace_core_TrackProcessor_resetProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
         auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         if (processor) processor->Reset();
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_addPointNative(
+    Java_org_skitrace_skitrace_core_TrackProcessor_addPoint(
             JNIEnv *env, jobject thiz, jlong ptr,
             jdouble lat, jdouble lon, jdouble alt,
             jdouble accuracy, jlong timestamp,
@@ -43,7 +43,7 @@ extern "C" {
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_getStatisticsNative(
+    Java_org_skitrace_skitrace_core_TrackProcessor_fetchTrackData(
             JNIEnv *env, jobject thiz, jlong ptr, jobject outputBuf) {
 
         const auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
@@ -52,7 +52,7 @@ extern "C" {
         auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
         if (!outData) return;
 
-        const TrackStatistics s = processor->GetStatistics();
+        const TrackStatistics s = processor->fetchTrackData();
 
         outData[0] = s.totalDistance;
         outData[1] = s.maxSpeed;
@@ -68,7 +68,7 @@ extern "C" {
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_updateSensorsBatchNative(
+    Java_org_skitrace_skitrace_core_TrackProcessor_updateSensors(
             JNIEnv *env, jobject thiz, jlong ptr,
             jintArray types, jfloatArray v0s, jfloatArray v1s, jfloatArray v2s, jfloatArray v3s,
             jlongArray timestamps, jint count) {
@@ -98,7 +98,7 @@ extern "C" {
     }
 
     JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_updateActivityNative(
+    Java_org_skitrace_skitrace_core_TrackProcessor_updateActivity(
             JNIEnv *env, jobject thiz, jlong ptr, jint type, jint confidence) {
         auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
         if (processor) processor->UpdateActivity(type, confidence);

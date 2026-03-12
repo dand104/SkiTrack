@@ -16,7 +16,7 @@ if (ANDROID)
     add_library(
             skitrace-core-native
             SHARED
-            JNIExport.cc
+            JNIExport.cxx
             $<TARGET_OBJECTS:skitrace-core-modules>
     )
     target_link_options(skitrace-core-native PRIVATE "-Wl,-z,max-page-size=16384")

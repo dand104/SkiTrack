@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
-apply(from = "$rootDir/gradle/android-common.gradle")
+apply(from = "$rootDir/android-common.gradle")
 
 android {
     namespace = "org.skitrace.skitrace.core"

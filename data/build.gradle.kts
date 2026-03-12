@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.google.ksp)
 }
 
-apply(from = "$rootDir/gradle/android-common.gradle")
+apply(from = "$rootDir/android-common.gradle")
 
 android {
     namespace = "org.skitrace.skitrace.data"

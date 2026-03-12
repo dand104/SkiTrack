@@ -311,7 +311,7 @@ namespace skitrace {
         return lastFilteredPoint_;
     }
 
-    TrackStatistics TrackProcessor::GetStatistics() const {
+    TrackStatistics TrackProcessor::fetchTrackData() const {
         double avgSpeed = 0.0;
         const long long durationNs = lastTime_ - startTime_;
         const double durationSec = durationNs * NS_TO_SEC;

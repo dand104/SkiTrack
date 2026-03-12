@@ -9,21 +9,16 @@ import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
 
 public class TrackProcessor implements AutoCloseable {
-
     static {
         System.loadLibrary("skitrace-core-native");
     }
 
-    private long nativePtr;
-
-    // Point: lat, lon, alt (3 doubles = 24 bytes)
+    private long processorPntr;
     private final DoubleBuffer pointOutputBuffer;
-
     private final DoubleBuffer statsOutputBuffer;
 
     public TrackProcessor() {
-        nativePtr = createNativeProcessor();
-
+        processorPntr = createProcessor();
         pointOutputBuffer = ByteBuffer.allocateDirect(3 * 8)
                 .order(ByteOrder.nativeOrder())
                 .asDoubleBuffer();
@@ -34,15 +29,15 @@ public class TrackProcessor implements AutoCloseable {
     }
 
     public TrackPoint processPoint(double lat, double lon, double alt, double accuracy, long timestamp) {
-        if (nativePtr == 0) throw new IllegalStateException("Process is closed");
+        if (processorPntr == 0) throw new IllegalStateException("Process is closed");
 
-        addPointNative(nativePtr, lat, lon, alt, accuracy, timestamp, pointOutputBuffer);
+        addPoint(processorPntr, lat, lon, alt, accuracy, timestamp, pointOutputBuffer);
         return new TrackPoint(pointOutputBuffer.get(0), pointOutputBuffer.get(1), pointOutputBuffer.get(2), timestamp);
     }
 
     public SkiStatistics getStatistics() {
-        if (nativePtr == 0) return new SkiStatistics();
-        getStatisticsNative(nativePtr, statsOutputBuffer);
+        if (processorPntr == 0) return new SkiStatistics();
+        fetchTrackData(processorPntr, statsOutputBuffer);
 
         return new SkiStatistics(
                 statsOutputBuffer.get(0), statsOutputBuffer.get(1), statsOutputBuffer.get(2),
@@ -54,34 +49,37 @@ public class TrackProcessor implements AutoCloseable {
     }
 
     public void reset() {
-        if (nativePtr != 0) resetNative(nativePtr);
+        if (processorPntr != 0) resetProcessor(processorPntr);
     }
 
     @Override
     public void close() {
-        if (nativePtr != 0) {
-            destroyNativeProcessor(nativePtr);
-            nativePtr = 0;
+        if (processorPntr != 0) {
+            destroyProcessor(processorPntr);
+            processorPntr = 0;
         }
     }
+
     public void updateSensorsBatch(int[] types, float[] v0s, float[] v1s, float[] v2s, float[] v3s, long[] timestamps, int count) {
-        if (nativePtr != 0) {
-            updateSensorsBatchNative(nativePtr, types, v0s, v1s, v2s, v3s, timestamps, count);
+        if (processorPntr != 0) {
+            updateSensors(processorPntr, types, v0s, v1s, v2s, v3s, timestamps, count);
         }
     }
+
     public void updateActivity(int type, int confidence) {
-        if (nativePtr != 0) {
-            updateActivityNative(nativePtr, type, confidence);
+        if (processorPntr != 0) {
+            updateActivity(processorPntr, type, confidence);
         }
     }
-    private native long createNativeProcessor();
-    private native void destroyNativeProcessor(long ptr);
-    private native void resetNative(long ptr);
 
-    private native void addPointNative(long ptr, double lat, double lon, double alt, double accuracy, long timestamp, DoubleBuffer outputBuf);
-    private native void getStatisticsNative(long ptr, DoubleBuffer outputBuf);
+    private native long createProcessor();
+    private native void destroyProcessor(long ptr);
+    private native void resetProcessor(long ptr);
 
-    private native void updateSensorsBatchNative(long ptr, int[] types, float[] v0, float[] v1, float[] v2, float[] v3, long[] timestamps, int count);
-    private native void updateActivityNative(long ptr, int type, int confidence);
+    private native void addPoint(long ptr, double lat, double lon, double alt, double accuracy, long timestamp, DoubleBuffer outputBuf);
+    private native void fetchTrackData(long ptr, DoubleBuffer outputBuf);
+
+    private native void updateSensors(long ptr, int[] types, float[] v0, float[] v1, float[] v2, float[] v3, long[] timestamps, int count);
+    private native void updateActivity(long ptr, int type, int confidence);
 
 }
