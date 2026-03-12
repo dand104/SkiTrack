@@ -1,7 +1,7 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 apply(from = "$rootDir/gradle/android-common.gradle")
@@ -34,53 +34,41 @@ android {
 }
 
 dependencies {
-    // Project dependencies
     implementation(project(":data"))
     implementation(project(":core"))
 
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2025.12.01")
+    val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    // Compose Runtime
-    implementation("androidx.compose.runtime:runtime")
+    // Compose
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
 
-    // AndroidX Compose UI Refrences
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
+    // AndroidX Core & Navigation
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.navigation.compose)
 
-    // AndroidX Kotlin core
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
+    // Maplibre
+    implementation(libs.maplibre.compose)
+    implementation(libs.maplibre.compose.material3)
 
-    // Android Compose Navigation
-    implementation("androidx.navigation:navigation-compose:2.9.6")
+    // Lifecycle & Activity
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // Maplibre Native Compose
-    implementation("org.maplibre.compose:maplibre-compose:0.12.1")
-    implementation("org.maplibre.compose:maplibre-compose-material3:0.12.1")
-
-    // Material Design library for Jetpack Compose
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-core")
-    implementation("androidx.compose.material:material-icons-extended")
-
-    // Jetpack Compose Activity Compose
-    implementation("androidx.activity:activity-compose:1.12.2")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
-
-    // Jetpack Compose Debug tooling
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-
-    // Junit
-    testImplementation("junit:junit:4.13.2")
-
-    // Android test junit
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-
+    // Debug & Test
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
 }

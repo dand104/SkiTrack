@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
 }
 
 apply(from = "$rootDir/gradle/android-common.gradle")
@@ -44,10 +44,9 @@ android {
 }
 
 dependencies {
-    // Test deps
-    debugImplementation("androidx.test.ext:junit-gtest:1.0.0-alpha02")
-    debugImplementation("com.android.ndk.thirdparty:googletest:1.11.0-beta-1")
-    androidTestImplementation("androidx.test:runner:1.7.0")
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    debugImplementation(libs.androidx.test.ext.junit.gtest)
+    debugImplementation(libs.google.ndk.googletest)
+    androidTestImplementation(libs.androidx.test.runner)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }

@@ -10,12 +10,6 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
-    plugins {
-        id 'com.android.application' version agp_version
-        id 'com.android.library' version agp_version
-        id 'org.jetbrains.kotlin.android' version kotlin_version
-        id 'org.jetbrains.kotlin.plugin.compose' version kotlin_version
-    }
 }
 
 dependencyResolutionManagement {
@@ -23,6 +17,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+    }
+    versionCatalogs {
+        libs {
+            from files('libs.toml')
+        }
     }
 }
 
