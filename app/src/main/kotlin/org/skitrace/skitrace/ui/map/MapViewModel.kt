@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -27,12 +28,21 @@ class MapViewModel(private val repository: TrackerRepository) : ViewModel() {
     private val _lastLocation = MutableStateFlow<TrackPoint?>(null)
     val lastLocation = _lastLocation.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            repository.trackPoints.collect { point ->
-                _lastLocation.value = point
-                _currentPoints.value = _currentPoints.value + point
+    private var trackingJob: Job? = null
+
+    fun setActive(isActive: Boolean) {
+        if (isActive && trackingJob == null) {
+            trackingJob = viewModelScope.launch {
+                repository.trackPoints.collect { point ->
+                    _lastLocation.value = point
+                    if (_currentPoints.value.lastOrNull()?.timestamp != point.timestamp) {
+                        _currentPoints.value += point
+                    }
+                }
             }
+        } else if (!isActive) {
+            trackingJob?.cancel()
+            trackingJob = null
         }
     }
 

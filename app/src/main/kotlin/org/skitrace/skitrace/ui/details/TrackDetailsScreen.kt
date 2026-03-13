@@ -81,23 +81,24 @@ class TrackDetailsViewModel(
                     if (point.stateCode != lastState && segmentPoints.isNotEmpty()) {
                         segmentPoints.add(pos)
 
-                        val line = LineString(segmentPoints.toList())
-                        val feature = Feature(
-                            geometry = line,
-                            properties = buildJsonObject {
-                                put("state", lastState)
-                            },
-                            id = null
-                        )
-                        features.add(feature)
+                        if (segmentPoints.size >= 2) {
+                            features.add(
+                                Feature(
+                                    geometry = LineString(segmentPoints.toList()),
+                                    properties = buildJsonObject { put("state", lastState) },
+                                    id = null
+                                )
+                            )
+                        }
 
-                        segmentPoints = mutableListOf()
+                        segmentPoints = mutableListOf(pos)
                         lastState = point.stateCode
+                    } else {
+                        segmentPoints.add(pos)
                     }
-                    segmentPoints.add(pos)
                 }
 
-                if (segmentPoints.isNotEmpty()) {
+                if (segmentPoints.size >= 2) {
                     val feature = Feature(
                         geometry = LineString(segmentPoints.toList()),
                         properties = buildJsonObject {

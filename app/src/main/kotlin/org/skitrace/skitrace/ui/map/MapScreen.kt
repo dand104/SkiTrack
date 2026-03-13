@@ -50,7 +50,8 @@ import org.skitrace.skitrace.map.MapStyles
 
 @Composable
 fun MapScreen(
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    isActive: Boolean = true
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as SkiTraceApplication
@@ -64,6 +65,10 @@ fun MapScreen(
 
     val currentPoints by viewModel.currentPoints.collectAsState()
     val lastLocation by viewModel.lastLocation.collectAsState()
+
+    LaunchedEffect(isActive) {
+        viewModel.setActive(isActive)
+    }
 
     val styleUrl = remember(isDark) {
         if (isDark) MapStyles.STYLE_DARK else MapStyles.STYLE_LIBERTY
@@ -121,7 +126,7 @@ fun MapScreen(
                         listOf(
                             Feature(
                                 geometry = line,
-                                properties = buildJsonObject { }, // Empty non-null JsonObject
+                                properties = buildJsonObject { },
                                 id = null
                             )
                         )

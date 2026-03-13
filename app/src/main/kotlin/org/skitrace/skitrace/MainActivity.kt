@@ -4,9 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,19 +14,19 @@ import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import androidx.compose.ui.zIndex
+import com.arkivanov.decompose.defaultComponentContext
+import com.arkivanov.decompose.extensions.compose.stack.Children
+import com.arkivanov.decompose.extensions.compose.stack.animation.fade
+import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimation
 import org.skitrace.skitrace.ui.details.TrackDetailsScreen
 import org.skitrace.skitrace.ui.map.MapScreen
+import org.skitrace.skitrace.ui.navigation.RootComponent
+import org.skitrace.skitrace.ui.navigation.TabLifecycleAware
 import org.skitrace.skitrace.ui.settings.SettingsScreen
 import org.skitrace.skitrace.ui.stats.StatsScreen
 import org.skitrace.skitrace.ui.theme.SkiTraceTheme
@@ -39,36 +36,51 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        org.maplibre.android.MapLibre.getInstance(this)
+        val rootComponent = RootComponent(defaultComponentContext())
 
         setContent {
             SkiTraceTheme {
-                MainApp()
+                RootContent(rootComponent)
             }
         }
     }
 }
 
 @Composable
-fun MainApp() {
-    val navController = rememberNavController()
-    val screens = listOf(
-        Screen.Trace,
-        Screen.Map,
-        Screen.Stats
-    )
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    val isMapScreen = currentRoute == Screen.Map.route
-    
-    // Show BottomBar only on main screens
-    val showBottomBar = screens.any { it.route == currentRoute }
+fun RootContent(component: RootComponent) {
+    Children(
+        stack = component.stack,
+        animation = stackAnimation(fade())
+    ) {
+        when (val child = it.instance) {
+            is RootComponent.Child.MainTabs -> MainTabsScreen(
+                onNavigateToSettings = component::navigateToSettings,
+                onNavigateToDetails = component::navigateToDetails
+            )
+            is RootComponent.Child.Settings -> SettingsScreen(onBack = component::navigateBack)
+            is RootComponent.Child.Details -> TrackDetailsScreen(runId = child.runId, onBack = component::navigateBack)
+        }
+    }
+}
+
+enum class TabConfig(val title: String, val icon: ImageVector) {
+    Trace("Tracker", Icons.Default.Timeline),
+    Map("Map", Icons.Default.Map),
+    Stats("History", Icons.Default.BarChart)
+}
+
+@Composable
+fun MainTabsScreen(
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDetails: (Long) -> Unit
+) {
+    var activeTab by remember { mutableStateOf(TabConfig.Trace) }
 
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
-            if (showBottomBar) {
-                val navBarContainerColor = if (isMapScreen) {
+            val isMapScreen = activeTab == TabConfig.Map
+            val navBarContainerColor = if (isMapScreen) {
                 MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f)
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
@@ -78,67 +90,49 @@ fun MainApp() {
                 containerColor = navBarContainerColor,
                 tonalElevation = if (isMapScreen) 0.dp else 3.dp
             ) {
-                val currentDestination = navBackStackEntry?.destination
-
-                screens.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                TabConfig.entries.forEach { tab ->
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = null) },
-                        label = { Text(screen.title) },
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
+                        icon = { Icon(tab.icon, contentDescription = null) },
+                        label = { Text(tab.title) },
+                        selected = activeTab == tab,
+                        onClick = { activeTab = tab }
                     )
                 }
             }
-            }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Trace.route,
-            modifier = Modifier.fillMaxSize(),
-            enterTransition = { fadeIn(animationSpec = tween(300)) },
-            exitTransition = { fadeOut(animationSpec = tween(300)) }
-        ) {
-            composable(Screen.Trace.route) {
-                Box(Modifier.padding(innerPadding)) {
+        Box(Modifier.fillMaxSize()) {
+
+            if (activeTab == TabConfig.Trace) {
+                Box(Modifier.padding(innerPadding).fillMaxSize().zIndex(1f)) {
                     TraceScreen()
                 }
             }
-            composable(Screen.Map.route) {
-                MapScreen(contentPadding = innerPadding)
+
+            val isMapActive = activeTab == TabConfig.Map
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .alpha(if (isMapActive) 1f else 0f)
+                    .zIndex(if (isMapActive) 1f else -1f)
+            ) {
+                TabLifecycleAware(isActive = isMapActive) {
+                    MapScreen(
+                        contentPadding = innerPadding,
+                        isActive = isMapActive
+                    )
+                }
             }
-            composable(Screen.Stats.route) {
-                StatsScreen(
-                    contentPadding = innerPadding,
-                    onNavigateToSettings = { navController.navigate("settings") },
-                    onNavigateToDetails = { runId -> navController.navigate("details/$runId") }
-                )
-            }
-            composable("settings") {
-                SettingsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(
-                route = "details/{runId}",
-                arguments = listOf(navArgument("runId") { type = NavType.LongType })
-            ) { backStackEntry ->
-                val runId = backStackEntry.arguments?.getLong("runId") ?: return@composable
-                TrackDetailsScreen(runId = runId, onBack = { navController.popBackStack() })
+
+            if (activeTab == TabConfig.Stats) {
+                Box(Modifier.fillMaxSize().zIndex(1f)) {
+                    StatsScreen(
+                        contentPadding = innerPadding,
+                        onNavigateToSettings = onNavigateToSettings,
+                        onNavigateToDetails = onNavigateToDetails
+                    )
+                }
             }
         }
     }
-}
-
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Trace : Screen("trace", "Tracker", Icons.Default.Timeline)
-    data object Map : Screen("map", "Map", Icons.Default.Map)
-    data object Stats : Screen("stats", "History", Icons.Default.BarChart)
 }
