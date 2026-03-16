@@ -28,6 +28,7 @@ class TrackerRepository(
 
     private val nativeMutex = Mutex()
     private val trackProcessor = TrackProcessor()
+    private val stats = TrackerStats()
     private val locationClient = ServicesProvider.provideLocationClient(context)
     private val activityClient = ServicesProvider.provideActivityClient(context)
     private val sensorClient = SensorClient(context)
@@ -67,7 +68,10 @@ class TrackerRepository(
         if (_isTracking.value) return
 
         trackingJob = scope.launch(dispatchers.default) {
-            nativeMutex.withLock { trackProcessor.reset() }
+            nativeMutex.withLock {
+                trackProcessor.reset()
+                stats.reset()
+            }
 
             val newRun = TrackRunEntity(startTime = System.currentTimeMillis())
             currentRunId = trackDao.insertRun(newRun)
@@ -92,21 +96,24 @@ class TrackerRepository(
             locationClient.getLocationUpdates(1000L)
                 .flowOn(dispatchers.io)
                 .collect { location ->
-                    val (point, stats) = nativeMutex.withLock {
+                    val (point, stat) = nativeMutex.withLock {
                         val timestampNs = location.elapsedRealtimeNanos
-                        val p = trackProcessor.processPoint(
+
+                        val instantData = trackProcessor.processPoint(
                             location.latitude,
                             location.longitude,
                             location.altitude,
                             location.accuracy.toDouble(),
                             timestampNs
                         )
-                        val s = trackProcessor.getStatistics()
-                        p to s
-                    }
-                    _trackPoints.emit(point)
-                    _currentStats.emit(stats)
 
+                        val s = stats.update(instantData, timestampNs)
+
+                        instantData.point() to s
+                    }
+
+                    _trackPoints.emit(point)
+                    _currentStats.emit(stat)
                     currentRunId?.let { runId ->
                         trackDao.insertPoint(
                             TrackPointEntity(
@@ -115,9 +122,9 @@ class TrackerRepository(
                                 longitude = point.longitude(),
                                 altitude = point.altitude(),
                                 timestamp = System.currentTimeMillis(),
-                                speedMs = stats.currentSpeedMs(),
+                                speedMs = stat.currentSpeedMs(),
                                 accuracy = location.accuracy.toDouble(),
-                                stateCode = stats.state().value
+                                stateCode = stat.state().value
                             )
                         )
                     }

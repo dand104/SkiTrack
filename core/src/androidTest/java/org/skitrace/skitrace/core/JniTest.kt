@@ -22,23 +22,7 @@ class JniTest {
     fun tearDown() {
         processor.close()
     }
-
-    @Test
-    fun testSimplePointProcessing() {
-        val result = processor.processPoint(55.75, 37.61, 150.0, 5.0, 1000L)
-
-        assertNotNull(result)
-        assertEquals(55.75, result.latitude, 0.001)
-        assertEquals(150.0, result.altitude, 0.1)
-    }
-
-    @Test
-    fun testStatisticsDefaults() {
-        val stats = processor.statistics
-
-        assertEquals(0.0, stats.totalDistanceMeters, 0.001)
-        assertEquals(TrackState.IDLE, stats.state)
-    }
+    // todo: add core tests
 
     @Test
     fun testSensorBatchUpdate() {

@@ -16,17 +16,9 @@ namespace skitrace {
         LIFT = 2
     };
 
-    struct TrackStatistics {
-        double totalDistance;
-        double maxSpeed;      
-        double avgSpeed;
-        double verticalDrop;
-        double verticalAscent;
-        double currentAltitude;
+   struct InstantTrackData {
+        GeoPoint point;
         double currentSpeed;
-        long long totalDurationMs;
-        long long skiingDurationMs;
-        long long liftDurationMs;
         TrackState currentState;
     };
 
@@ -35,9 +27,7 @@ namespace skitrace {
             TrackProcessor();
             ~TrackProcessor() = default;
 
-            GeoPoint AddPoint(double lat, double lon, double alt, double accuracy, long long timestamp);
-
-            [[nodiscard]] TrackStatistics fetchTrackData() const;
+            InstantTrackData ProcessPoint(double lat, double lon, double alt, double accuracy, long long timestamp);
             void UpdateSensors(int sensorType, float v0, float v1, float v2, float v3, long long timestamp);
             void UpdateActivity(int type, int confidence);
 
@@ -45,22 +35,14 @@ namespace skitrace {
 
         private:
             void UpdateState(double speedMs, double verticalVel);
-            bool isFirstPoint_{};
-            GeoPoint lastFilteredPoint_{};
 
             static inline double ClampMin(double v, double mn);
             static double ComputeRScaleFromInnovation(double innovationMeters, double sigmaMeters);
 
-            double totalDistance_{};
-            double maxSpeed_{};
-            double verticalDrop_{};
-            double verticalAscent_{};
-            long long startTime_{};
-            long long skiingDurationNs_{};
-            long long liftDurationNs_{};
-            long long lastTime_{};
-            double currentSpeed_{};
+            bool isFirstPoint_{};
+            GeoPoint lastFilteredPoint_{};
             TrackState currentState_ = TrackState::IDLE;
+            double currentSpeed_{};
 
             int liftConsistentCount_ = 0;
             int skiConsistentCount_ = 0;

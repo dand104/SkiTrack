@@ -1,6 +1,5 @@
 package org.skitrace.skitrace.core;
 
-import org.skitrace.skitrace.core.model.SkiStatistics;
 import org.skitrace.skitrace.core.model.TrackPoint;
 import org.skitrace.skitrace.core.model.TrackState;
 
@@ -14,38 +13,25 @@ public class TrackProcessor implements AutoCloseable {
     }
 
     private long processorPntr;
-    private final DoubleBuffer pointOutputBuffer;
-    private final DoubleBuffer statsOutputBuffer;
+    private final DoubleBuffer outputBuffer;
+    public record InstantData(TrackPoint point, double speedMs, TrackState state) {}
+
 
     public TrackProcessor() {
         processorPntr = createProcessor();
-        pointOutputBuffer = ByteBuffer.allocateDirect(3 * 8)
-                .order(ByteOrder.nativeOrder())
-                .asDoubleBuffer();
-
-        statsOutputBuffer = ByteBuffer.allocateDirect(11 * 8)
-                .order(ByteOrder.nativeOrder())
-                .asDoubleBuffer();
+        outputBuffer = ByteBuffer.allocateDirect(5 * 8).order(ByteOrder.nativeOrder()).asDoubleBuffer();
     }
 
-    public TrackPoint processPoint(double lat, double lon, double alt, double accuracy, long timestamp) {
+    public InstantData processPoint(double lat, double lon, double alt, double accuracy, long timestamp) {
         if (processorPntr == 0) throw new IllegalStateException("Process is closed");
 
-        addPoint(processorPntr, lat, lon, alt, accuracy, timestamp, pointOutputBuffer);
-        return new TrackPoint(pointOutputBuffer.get(0), pointOutputBuffer.get(1), pointOutputBuffer.get(2), timestamp);
-    }
+        addPoint(processorPntr, lat, lon, alt, accuracy, timestamp, outputBuffer);
 
-    public SkiStatistics getStatistics() {
-        if (processorPntr == 0) return new SkiStatistics();
-        fetchTrackData(processorPntr, statsOutputBuffer);
+        TrackPoint p = new TrackPoint(outputBuffer.get(0), outputBuffer.get(1), outputBuffer.get(2), timestamp);
+        double speed = outputBuffer.get(3);
+        TrackState state = TrackState.fromInt((int) outputBuffer.get(4));
 
-        return new SkiStatistics(
-                statsOutputBuffer.get(0), statsOutputBuffer.get(1), statsOutputBuffer.get(2),
-                statsOutputBuffer.get(3), statsOutputBuffer.get(4), statsOutputBuffer.get(5),
-                statsOutputBuffer.get(6), (long) statsOutputBuffer.get(7), 
-                (long) statsOutputBuffer.get(9), (long) statsOutputBuffer.get(10),
-                TrackState.fromInt((int) statsOutputBuffer.get(8))
-        );
+        return new InstantData(p, speed, state);
     }
 
     public void reset() {
@@ -77,7 +63,6 @@ public class TrackProcessor implements AutoCloseable {
     private native void resetProcessor(long ptr);
 
     private native void addPoint(long ptr, double lat, double lon, double alt, double accuracy, long timestamp, DoubleBuffer outputBuf);
-    private native void fetchTrackData(long ptr, DoubleBuffer outputBuf);
 
     private native void updateSensors(long ptr, int[] types, float[] v0, float[] v1, float[] v2, float[] v3, long[] timestamps, int count);
     private native void updateActivity(long ptr, int type, int confidence);

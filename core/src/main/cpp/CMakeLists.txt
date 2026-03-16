@@ -4,7 +4,7 @@ add_library(
         # Math module
         math/GeoUtils.cxx
         # Processor module
-        processor/TrackProcessor.cxx
+        TrackProcessor.cxx
         # Filters
         filter/VerticalTracker.cxx
 )

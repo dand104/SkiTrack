@@ -1,10 +1,9 @@
-#include "processor/TrackProcessor.hxx"
+#include "TrackProcessor.hxx"
 #include <algorithm>
 #include <cmath>
 
 namespace skitrace {
 
-    static constexpr int TYPE_ACCELEROMETER = 1;
     static constexpr int TYPE_PRESSURE = 6;
     static constexpr int TYPE_LINEAR_ACCELERATION = 10;
     static constexpr int TYPE_ROTATION_VECTOR = 11;
@@ -17,12 +16,10 @@ namespace skitrace {
     static constexpr double METERS_TO_DEGREES = 1.0 / 111132.0;
 
     static constexpr double NS_TO_SEC = 1.0e-9;
-    static constexpr double NS_TO_MS = 1.0e-6;
 
     static constexpr int AR_IN_VEHICLE = 0;
     static constexpr int AR_STILL = 3;
 
-    static constexpr double MAX_REASONABLE_SPEED = 45.0;
     static constexpr double OUTLIER_START_SIGMA = 3.0;
     static constexpr double OUTLIER_HARD_SIGMA  = 10.0;
     static constexpr double OUTLIER_R_SCALE_MAX = 1.0e6;
@@ -54,15 +51,7 @@ namespace skitrace {
 
     void TrackProcessor::Reset() {
         isFirstPoint_ = true;
-        totalDistance_ = 0.0;
-        maxSpeed_ = 0.0;
-        verticalDrop_ = 0.0;
-        verticalAscent_ = 0.0;
         currentSpeed_ = 0.0;
-        skiingDurationNs_ = 0;
-        liftDurationNs_ = 0;
-        startTime_ = 0;
-        lastTime_ = 0;
 
         currentState_ = TrackState::IDLE;
         liftConsistentCount_ = 0;
@@ -199,138 +188,66 @@ namespace skitrace {
         }
     }
 
-    GeoPoint TrackProcessor::AddPoint(double lat, double lon, const double alt,
-                                    const double accuracy,
-                                    const long long timestampNs) {
+    InstantTrackData TrackProcessor::ProcessPoint(double lat, double lon, double alt,
+                                                double accuracy, long long timestampNs) {
+
         const double sigma_m = (accuracy < 2.0 ? 2.0 : accuracy);
         const double sigma_deg = sigma_m * METERS_TO_DEGREES;
 
-        double cosLat = std::cos(lat * M_PI / 180.0);
-        if (cosLat < 0.0001) cosLat = 0.0001;
-
-        const double base_r_variance_lat = sigma_deg * sigma_deg;
-        const double base_r_variance_lon = (sigma_deg / cosLat) * (sigma_deg / cosLat);
-
         if (isFirstPoint_) {
             isFirstPoint_ = false;
-            startTime_ = timestampNs;
-            lastTime_ = timestampNs;
-            lastSensorTime_ = timestampNs;
 
             constexpr double baseProcessNoise = 8.0e-11;
-
             latFilter_ = std::make_unique<KalmanFilterCV>(lat, baseProcessNoise);
             lonFilter_ = std::make_unique<KalmanFilterCV>(lon, baseProcessNoise);
-
             verticalTracker_->Initialize(alt, false);
 
             lastFilteredPoint_ = {lat, lon, alt, timestampNs};
-            return lastFilteredPoint_;
+            currentSpeed_ = 0.0;
+            currentState_ = TrackState::IDLE;
+
+            return {lastFilteredPoint_, currentSpeed_, currentState_};
         }
 
-        const long long dtNs = timestampNs - lastTime_;
+        const long long dtNs = timestampNs - lastFilteredPoint_.timestamp;
         const double dtSec = dtNs * NS_TO_SEC;
 
-        if (dtSec > 0) {
-            lastTime_ = timestampNs;
-
-            const double dtPred = (dtSec > 1.5) ? 1.5 : dtSec;
-            if (std::abs(cosLat) > 0.01) {
-                lonFilter_->SetProcessNoise(8.0e-11 / (cosLat * cosLat));
-            }
+        if (dtSec > 0.0001) {
+            double cosLat = std::cos(lat * M_PI / 180.0);
+            if (cosLat < 0.01) cosLat = 0.01;
+            lonFilter_->SetProcessNoise(8.0e-11 / (cosLat * cosLat));
 
             latFilter_->Predict(dtSec);
             lonFilter_->Predict(dtSec);
+            double predLat = latFilter_->GetPosition();
+            double predLon = lonFilter_->GetPosition();
+            double innovation_m = GeoUtils::HaversineDistance({predLat, predLon}, {lat, lon});
+            double rScale = ComputeRScaleFromInnovation(innovation_m, sigma_m);
 
-            const double predLat = latFilter_->GetPosition();
-            const double predLon = lonFilter_->GetPosition();
+            latFilter_->Update(lat, (sigma_deg * sigma_deg) * rScale);
+            lonFilter_->Update(lon, (sigma_deg / cosLat) * (sigma_deg / cosLat) * rScale);
 
-            const GeoPoint predP{predLat, predLon, 0.0, timestampNs};
-            const GeoPoint measP{lat, lon, 0.0, timestampNs};
-            const double innovation_m = GeoUtils::HaversineDistance(predP, measP);
+            verticalTracker_->UpdateGPS(alt, sigma_m * 1.5);
 
-            const double rScale = ComputeRScaleFromInnovation(innovation_m, sigma_m);
-
-            latFilter_->Update(lat, base_r_variance_lat * rScale);
-            lonFilter_->Update(lon, base_r_variance_lon * rScale);
-
-            const double sigmaV_base = std::max(15.0, sigma_m * 1.5);
-
-            const double predAlt = verticalTracker_->GetAltitude();
-            const double altInnovation = std::abs(alt - predAlt);
-            const double rScaleAlt = ComputeRScaleFromInnovation(altInnovation, sigmaV_base);
-            const double sigmaV_inflated = sigmaV_base * std::sqrt(rScaleAlt);
-
-            verticalTracker_->UpdateGPS(alt, sigmaV_inflated);
-
-            const GeoPoint newFilteredPoint = {
-                    latFilter_->GetPosition(),
-                    lonFilter_->GetPosition(),
-                    verticalTracker_->GetAltitude(),
+            GeoPoint newPoint = {
+                latFilter_->GetPosition(),
+                lonFilter_->GetPosition(),
+                verticalTracker_->GetAltitude(),
                 timestampNs
             };
 
-            const double dist = GeoUtils::HaversineDistance(lastFilteredPoint_, newFilteredPoint);
-            const double altDiff = newFilteredPoint.altitude - lastFilteredPoint_.altitude;
+            double distMoved = GeoUtils::HaversineDistance(lastFilteredPoint_, newPoint);
+            currentSpeed_ = distMoved / dtSec;
 
-            double speed = 0.0;
-            if (dtSec > 0.0001) {
-                speed = dist / dtSec;
-            }
-            const double verticalVel = verticalTracker_->GetVelocity();
+            double verticalVel = verticalTracker_->GetVelocity();
+            UpdateState(currentSpeed_, verticalVel);
 
-            UpdateState(speed, verticalVel);
-            if (currentState_ == TrackState::SKIING) {
-                skiingDurationNs_ += dtNs;
-            } else if (currentState_ == TrackState::LIFT) {
-                liftDurationNs_ += dtNs;
-            }
-            const bool speedOutlierForStats = (speed > MAX_REASONABLE_SPEED);
-
-            if (!speedOutlierForStats) {
-                currentSpeed_ = speed;
-
-                if (currentState_ != TrackState::IDLE) {
-                    totalDistance_ += dist;
-                }
-
-                if (speed > maxSpeed_) {
-                    maxSpeed_ = speed;
-                }
-
-                if (std::abs(altDiff) > 0.1) {
-                    if (altDiff < 0) verticalDrop_ += std::abs(altDiff);
-                    else            verticalAscent_ += altDiff;
-                }
-            }
-            lastFilteredPoint_ = newFilteredPoint;
-
-            return newFilteredPoint;
+            lastFilteredPoint_ = newPoint;
         }
 
-        return lastFilteredPoint_;
-    }
-
-    TrackStatistics TrackProcessor::fetchTrackData() const {
-        double avgSpeed = 0.0;
-        const long long durationNs = lastTime_ - startTime_;
-        const double durationSec = durationNs * NS_TO_SEC;
-
-        if (durationSec > 0.1) {
-            avgSpeed = totalDistance_ / durationSec;
-        }
-
-        return TrackStatistics{
-            totalDistance_,
-            maxSpeed_,
-            avgSpeed,
-            verticalDrop_,
-            verticalAscent_,
-            verticalTracker_->GetAltitude(),
+        return {
+            lastFilteredPoint_,
             currentSpeed_,
-            static_cast<long long>(durationNs * NS_TO_MS),
-            static_cast<long long>(skiingDurationNs_ * NS_TO_MS),
-            static_cast<long long>(liftDurationNs_ * NS_TO_MS),
             currentState_
         };
     }

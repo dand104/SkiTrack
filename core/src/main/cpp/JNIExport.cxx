@@ -1,5 +1,5 @@
 #include <jni.h>
-#include "processor/TrackProcessor.hxx"
+#include "TrackProcessor.hxx"
 
 using namespace skitrace;
 
@@ -35,36 +35,13 @@ extern "C" {
         auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
         if (!outData) return;
 
-        const GeoPoint p = processor->AddPoint(lat, lon, alt, accuracy, timestamp);
+        const InstantTrackData data = processor->ProcessPoint(lat, lon, alt, accuracy, timestamp);
 
-        outData[0] = p.latitude;
-        outData[1] = p.longitude;
-        outData[2] = p.altitude;
-    }
-
-    JNIEXPORT void JNICALL
-    Java_org_skitrace_skitrace_core_TrackProcessor_fetchTrackData(
-            JNIEnv *env, jobject thiz, jlong ptr, jobject outputBuf) {
-
-        const auto *processor = reinterpret_cast<TrackProcessor *>(ptr);
-        if (!processor) return;
-
-        auto *outData = static_cast<double *>(env->GetDirectBufferAddress(outputBuf));
-        if (!outData) return;
-
-        const TrackStatistics s = processor->fetchTrackData();
-
-        outData[0] = s.totalDistance;
-        outData[1] = s.maxSpeed;
-        outData[2] = s.avgSpeed;
-        outData[3] = s.verticalDrop;
-        outData[4] = s.verticalAscent;
-        outData[5] = s.currentAltitude;
-        outData[6] = s.currentSpeed;
-        outData[7] = static_cast<double>(s.totalDurationMs);
-        outData[8] = static_cast<double>(s.currentState);
-        outData[9] = static_cast<double>(s.skiingDurationMs);
-        outData[10] = static_cast<double>(s.liftDurationMs);
+        outData[0] = data.point.latitude;
+        outData[1] = data.point.longitude;
+        outData[2] = data.point.altitude;
+        outData[3] = data.currentSpeed;
+        outData[4] = static_cast<double>(data.currentState);
     }
 
     JNIEXPORT void JNICALL
