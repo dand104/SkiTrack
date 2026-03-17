@@ -77,6 +77,16 @@ class TrackerRepository(
             currentRunId = trackDao.insertRun(newRun)
             _isTracking.emit(true)
 
+            launch {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    val updatedStats = nativeMutex.withLock {
+                        stats.updateTime()
+                    }
+                    _currentStats.emit(updatedStats)
+                }
+            }
+
             sensorClient.startListening { types, v0s, v1s, v2s, v3s, timestamps, count ->
                 scope.launch(dispatchers.default) {
                     nativeMutex.withLock {

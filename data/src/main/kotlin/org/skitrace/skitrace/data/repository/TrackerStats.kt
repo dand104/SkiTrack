@@ -1,6 +1,7 @@
 package org.skitrace.skitrace.data.repository
 
 import android.location.Location
+import android.os.SystemClock
 import org.skitrace.skitrace.core.TrackProcessor
 import org.skitrace.skitrace.core.model.SkiStatistics
 import org.skitrace.skitrace.core.model.TrackPoint
@@ -16,9 +17,12 @@ class TrackerStats {
     private var skiingDurationMs = 0L
     private var liftDurationMs = 0L
 
-    private var firstPointTimeNs: Long = 0
+    private var trackingStartTimeNs: Long = 0
     private var lastPoint: TrackPoint? = null
     private var lastPointTimeNs: Long = 0
+    private var currentAlt = 0.0
+    private var currentSpeed = 0.0
+    private var currentState = TrackState.IDLE
 
     private val distanceResults = FloatArray(1)
 
@@ -30,27 +34,38 @@ class TrackerStats {
         totalDurationMs = 0L
         skiingDurationMs = 0L
         liftDurationMs = 0L
-        firstPointTimeNs = 0
+        trackingStartTimeNs = SystemClock.elapsedRealtimeNanos()
         lastPointTimeNs = 0
         lastPoint = null
+        currentAlt = 0.0
+        currentSpeed = 0.0
+        currentState = TrackState.IDLE
+    }
+
+    fun updateTime(): SkiStatistics {
+        if (trackingStartTimeNs > 0) {
+            val nowNs = SystemClock.elapsedRealtimeNanos()
+            totalDurationMs = (nowNs - trackingStartTimeNs) / 1_000_000L
+        }
+        return buildStats(currentAlt, currentSpeed, currentState)
     }
 
     fun update(instantData: TrackProcessor.InstantData, timestampNs: Long): SkiStatistics {
         val currentPoint = instantData.point()
-        val currentState = instantData.state()
-        val currentSpeed = instantData.speedMs()
+        currentState = instantData.state()
+        currentSpeed = instantData.speedMs()
+        currentAlt = currentPoint.altitude()
+        totalDurationMs = (timestampNs - trackingStartTimeNs) / 1_000_000L
 
         if (lastPoint == null) {
-            firstPointTimeNs = timestampNs
             lastPointTimeNs = timestampNs
             lastPoint = currentPoint
-            return buildStats(currentPoint.altitude(), currentSpeed, currentState)
+            return buildStats(currentAlt, currentSpeed, currentState)
         }
 
         val dtNs = timestampNs - lastPointTimeNs
         val dtMs = dtNs / 1_000_000L
         lastPointTimeNs = timestampNs
-        totalDurationMs = (timestampNs - firstPointTimeNs) / 1_000_000L
 
         when (currentState) {
             TrackState.SKIING -> skiingDurationMs += dtMs
@@ -74,7 +89,7 @@ class TrackerStats {
             totalDistanceMeters += distMeters
         }
 
-        val altDiff = currentPoint.altitude() - prevPoint.altitude()
+        val altDiff = currentAlt - prevPoint.altitude()
         if (abs(altDiff) > 0.1) {
             if (altDiff < 0) {
                 verticalDropMeters += abs(altDiff)
@@ -85,7 +100,7 @@ class TrackerStats {
 
         lastPoint = currentPoint
 
-        return buildStats(currentPoint.altitude(), currentSpeed, currentState)
+        return buildStats(currentAlt, currentSpeed, currentState)
     }
 
     private fun buildStats(currentAlt: Double, currentSpeed: Double, state: TrackState): SkiStatistics {

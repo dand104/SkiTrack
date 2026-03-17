@@ -129,8 +129,10 @@ class TrackDetailsViewModel(
 fun TrackDetailsScreen(runId: Long, onBack: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as SkiTraceApplication
-    val viewModel: TrackDetailsViewModel = viewModel(factory = TrackDetailsViewModel.Factory(app.trackerRepository, runId))
-
+    val viewModel: TrackDetailsViewModel = viewModel(
+        key = "track_details_$runId",
+        factory = TrackDetailsViewModel.Factory(app.trackerRepository, runId)
+    )
     val run by viewModel.run.collectAsState()
     val points by viewModel.points.collectAsState()
     val geoJsonString by viewModel.geoJsonString.collectAsState()
