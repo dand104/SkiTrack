@@ -1,13 +1,22 @@
 package org.skitrace.skitrace.ui.details
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
@@ -15,10 +24,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -115,7 +128,12 @@ class TrackDetailsViewModel(
     }
 
     fun deleteRun() = viewModelScope.launch { repository.deleteRun(runId) }
-    fun renameRun(newName: String) = viewModelScope.launch { repository.updateRunTitle(runId, newName) }
+
+    fun renameRun(newName: String) = viewModelScope.launch {
+        repository.updateRunTitle(runId, newName)
+        _run.value = repository.getRun(runId)
+    }
+
     suspend fun exportRun() = repository.exportRun(runId)
 
     class Factory(private val repo: TrackerRepository, private val id: Long) : ViewModelProvider.Factory {
@@ -141,6 +159,8 @@ fun TrackDetailsScreen(runId: Long, onBack: () -> Unit) {
         bottomSheetState = rememberStandardBottomSheetState(initialValue = SheetValue.PartiallyExpanded)
     )
 
+    val scope = rememberCoroutineScope()
+
     if (run == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
@@ -156,7 +176,16 @@ fun TrackDetailsScreen(runId: Long, onBack: () -> Unit) {
                 points = points,
                 onRename = { viewModel.renameRun(it) },
                 onDelete = { viewModel.deleteRun(); onBack() },
-                onExport = { /* Export logic */ }
+                onExport = {
+                    scope.launch {
+                        val uri = viewModel.exportRun()
+                        if (uri != null) {
+                            shareGpxFile(context, uri)
+                        } else {
+                            Toast.makeText(context, "Failed to export GPX", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             )
         }
     ) {
@@ -220,17 +249,85 @@ fun TrackDetailsContent(
     onDelete: () -> Unit,
     onExport: () -> Unit
 ) {
+    var isEditingName by remember { mutableStateOf(false) }
+    var currentName by remember(run.note) { mutableStateOf(run.note ?: "Ski Session") }
+    val focusRequester = remember { FocusRequester() }
+
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState())
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            IconButton(onClick = onExport) { Icon(Icons.Default.Share, "Export GPX") }
-            IconButton(onClick = { /* TODO Dialog */ }) { Icon(Icons.Default.Edit, "Rename") }
-            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) }
+            if (isEditingName) {
+                IconButton(onClick = {
+                    isEditingName = false
+                    currentName = run.note ?: "Ski Session" // откат изменений
+                }) {
+                    Icon(Icons.Default.Close, "Cancel")
+                }
+                IconButton(onClick = {
+                    if (currentName.isNotBlank() && currentName != run.note) {
+                        onRename(currentName)
+                    }
+                    isEditingName = false
+                }) {
+                    Icon(Icons.Default.Check, "Save", tint = MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                IconButton(onClick = onExport) {
+                    Icon(Icons.Default.Share, "Export GPX")
+                }
+                IconButton(onClick = { isEditingName = true }) {
+                    Icon(Icons.Default.Edit, "Rename")
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                }
+            }
         }
 
-        Text(run.note ?: "Ski Session", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Total Distance: %.1f km".format(run.totalDistance / 1000.0), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+        if (isEditingName) {
+            LaunchedEffect(Unit) {
+                focusRequester.requestFocus()
+            }
+
+            BasicTextField(
+                value = currentName,
+                onValueChange = { currentName = it },
+                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (currentName.isNotBlank() && currentName != run.note) {
+                        onRename(currentName)
+                    }
+                    isEditingName = false
+                }),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 4.dp),
+                color = MaterialTheme.colorScheme.primary,
+                thickness = 2.dp
+            )
+        } else {
+            Text(
+                text = run.note ?: "Ski Session",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Total Distance: %.1f km".format(run.totalDistance / 1000.0),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
 
         Spacer(Modifier.height(24.dp))
 
@@ -285,4 +382,14 @@ fun TrackGraph(points: List<TrackPointEntity>, type: GraphType) {
             )
         }
     }
+}
+
+private fun shareGpxFile(context: Context, uri: Uri) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/gpx+xml"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, "SkiTrace GPX Export")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share GPX file"))
 }

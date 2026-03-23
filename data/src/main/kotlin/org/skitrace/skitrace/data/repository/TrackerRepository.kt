@@ -148,25 +148,27 @@ class TrackerRepository(
         sensorClient.stopListening()
 
         val runId = currentRunId
-        val finalStats = _currentStats.value
-
         if (runId != null && job != null) {
             CoroutineScope(dispatchers.io).launch {
                 job.cancelAndJoin()
 
-                val runEntity = TrackRunEntity(
-                    id = runId,
-                    startTime = System.currentTimeMillis() - finalStats.totalDurationMs(),
-                    endTime = System.currentTimeMillis(),
-                    totalDistance = finalStats.totalDistanceMeters(),
-                    maxSpeed = finalStats.maxSpeedMs(),
-                    avgSpeed = finalStats.avgSpeedMs(),
-                    verticalDrop = finalStats.verticalDropMeters(),
-                    durationMs = finalStats.totalDurationMs(),
-                    activeSkiingMs = finalStats.skiingDurationMs(),
-                    liftMs = finalStats.liftDurationMs()
-                )
-                trackDao.updateRun(runEntity)
+                val finalStats = _currentStats.value
+                val existingRun = trackDao.getRunById(runId)
+
+                if (existingRun != null) {
+                    val updatedRun = existingRun.copy(
+                        endTime = System.currentTimeMillis(),
+                        totalDistance = finalStats.totalDistanceMeters(),
+                        maxSpeed = finalStats.maxSpeedMs(),
+                        avgSpeed = finalStats.avgSpeedMs(),
+                        verticalDrop = finalStats.verticalDropMeters(),
+                        durationMs = finalStats.totalDurationMs(),
+                        activeSkiingMs = finalStats.skiingDurationMs(),
+                        liftMs = finalStats.liftDurationMs()
+                    )
+                    trackDao.updateRun(updatedRun)
+                }
+
                 currentRunId = null
                 _isTracking.emit(false)
                 _currentStats.emit(SkiStatistics())
