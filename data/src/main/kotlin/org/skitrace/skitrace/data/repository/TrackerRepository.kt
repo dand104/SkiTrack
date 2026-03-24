@@ -41,11 +41,15 @@ class TrackerRepository(
     private val _isTracking = MutableStateFlow(false)
     val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
 
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
     private val _trackPoints = MutableSharedFlow<TrackPoint>(replay = 0)
     val trackPoints: SharedFlow<TrackPoint> = _trackPoints.asSharedFlow()
 
     private var trackingJob: Job? = null
     private var currentRunId: Long? = null
+    private val scope = CoroutineScope(dispatchers.default)
 
     val allRuns = trackDao.getAllRuns()
     val totalLifetimeDistance = trackDao.getTotalDistance().map { it ?: 0.0 }
@@ -54,6 +58,9 @@ class TrackerRepository(
 
     suspend fun getRun(id: Long) = trackDao.getRunById(id)
     suspend fun getRunPoints(id: Long) = trackDao.getPointsForRun(id)
+    fun getRunFlow(id: Long): Flow<TrackRunEntity?> = trackDao.getRunByIdFlow(id)
+    fun getRunPointsFlow(id: Long): Flow<List<TrackPointEntity>> = trackDao.getPointsForRunFlow(id)
+
     suspend fun deleteRun(id: Long) = trackDao.deleteRunById(id)
     suspend fun updateRunTitle(id: Long, title: String) {
         val run = trackDao.getRunById(id)
@@ -62,6 +69,21 @@ class TrackerRepository(
 
     suspend fun exportRun(runId: Long): android.net.Uri? {
         return gpxExporter.exportRunToGpx(runId)
+    }
+
+    fun pauseTracking() {
+        scope.launch {
+            nativeMutex.withLock { stats.pause() }
+            _isPaused.emit(true)
+            _currentStats.emit(stats.updateTime())
+        }
+    }
+
+    fun resumeTracking() {
+        scope.launch {
+            nativeMutex.withLock { stats.resume() }
+            _isPaused.emit(false)
+        }
     }
 
     fun startTracking(scope: CoroutineScope) {
@@ -76,18 +98,42 @@ class TrackerRepository(
             val newRun = TrackRunEntity(startTime = System.currentTimeMillis())
             currentRunId = trackDao.insertRun(newRun)
             _isTracking.emit(true)
+            _isPaused.emit(false)
 
             launch {
+                var tick = 0
                 while (true) {
                     kotlinx.coroutines.delay(1000)
-                    val updatedStats = nativeMutex.withLock {
-                        stats.updateTime()
-                    }
+                    val updatedStats = nativeMutex.withLock { stats.updateTime() }
                     _currentStats.emit(updatedStats)
+
+                    tick++
+                    if (tick >= 10) {
+                        tick = 0
+                        val runId = currentRunId
+                        if (runId != null && !_isPaused.value) {
+                            launch(dispatchers.io) {
+                                val existingRun = trackDao.getRunById(runId)
+                                if (existingRun != null) {
+                                    trackDao.updateRun(existingRun.copy(
+                                        totalDistance = updatedStats.totalDistanceMeters(),
+                                        maxSpeed = updatedStats.maxSpeedMs(),
+                                        avgSpeed = updatedStats.avgSpeedMs(),
+                                        verticalDrop = updatedStats.verticalDropMeters(),
+                                        durationMs = updatedStats.totalDurationMs(),
+                                        activeSkiingMs = updatedStats.skiingDurationMs(),
+                                        liftMs = updatedStats.liftDurationMs(),
+                                        descentsCount = updatedStats.descentsCount()
+                                    ))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             sensorClient.startListening { types, v0s, v1s, v2s, v3s, timestamps, count ->
+                if (_isPaused.value) return@startListening
                 scope.launch(dispatchers.default) {
                     nativeMutex.withLock {
                         trackProcessor.updateSensorsBatch(types, v0s, v1s, v2s, v3s, timestamps, count)
@@ -97,18 +143,22 @@ class TrackerRepository(
 
             launch {
                 activityClient.getActivityUpdates(5000L).collect { activity ->
-                    nativeMutex.withLock {
-                        trackProcessor.updateActivity(activity.type, activity.confidence)
-                    }
+                    if (_isPaused.value) return@collect
+                    nativeMutex.withLock { trackProcessor.updateActivity(activity.type, activity.confidence) }
                 }
             }
 
             locationClient.getLocationUpdates(1000L)
                 .flowOn(dispatchers.io)
                 .collect { location ->
-                    val (point, stat) = nativeMutex.withLock {
-                        val timestampNs = location.elapsedRealtimeNanos
+                    val timestampNs = location.elapsedRealtimeNanos
 
+                    if (_isPaused.value) {
+                        _trackPoints.emit(TrackPoint(location.latitude, location.longitude, location.altitude, System.currentTimeMillis()))
+                        return@collect
+                    }
+
+                    val (point, stat) = nativeMutex.withLock {
                         val instantData = trackProcessor.processPoint(
                             location.latitude,
                             location.longitude,
@@ -150,9 +200,10 @@ class TrackerRepository(
         val runId = currentRunId
         if (runId != null && job != null) {
             CoroutineScope(dispatchers.io).launch {
+                val finalStats = nativeMutex.withLock { stats.updateTime() }
+
                 job.cancelAndJoin()
 
-                val finalStats = _currentStats.value
                 val existingRun = trackDao.getRunById(runId)
 
                 if (existingRun != null) {
@@ -164,17 +215,20 @@ class TrackerRepository(
                         verticalDrop = finalStats.verticalDropMeters(),
                         durationMs = finalStats.totalDurationMs(),
                         activeSkiingMs = finalStats.skiingDurationMs(),
-                        liftMs = finalStats.liftDurationMs()
+                        liftMs = finalStats.liftDurationMs(),
+                        descentsCount = finalStats.descentsCount()
                     )
                     trackDao.updateRun(updatedRun)
                 }
 
                 currentRunId = null
                 _isTracking.emit(false)
+                _isPaused.emit(false)
                 _currentStats.emit(SkiStatistics())
             }
         } else {
             _isTracking.value = false
+            _isPaused.value = false
         }
     }
 }

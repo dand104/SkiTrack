@@ -16,6 +16,7 @@ class TrackerStats {
     private var totalDurationMs = 0L
     private var skiingDurationMs = 0L
     private var liftDurationMs = 0L
+    private var descentsCount = 0
 
     private var trackingStartTimeNs: Long = 0
     private var lastPoint: TrackPoint? = null
@@ -23,6 +24,12 @@ class TrackerStats {
     private var currentAlt = 0.0
     private var currentSpeed = 0.0
     private var currentState = TrackState.IDLE
+
+    private var totalPausedNs: Long = 0
+    private var currentPauseStartNs: Long = 0
+
+    var isPaused: Boolean = false
+        private set
 
     private val distanceResults = FloatArray(1)
 
@@ -34,28 +41,59 @@ class TrackerStats {
         totalDurationMs = 0L
         skiingDurationMs = 0L
         liftDurationMs = 0L
+        descentsCount = 0
         trackingStartTimeNs = SystemClock.elapsedRealtimeNanos()
         lastPointTimeNs = 0
         lastPoint = null
         currentAlt = 0.0
         currentSpeed = 0.0
         currentState = TrackState.IDLE
+        totalPausedNs = 0
+        currentPauseStartNs = 0
+        isPaused = false
+    }
+
+    fun pause() {
+        if (!isPaused) {
+            isPaused = true
+            currentPauseStartNs = SystemClock.elapsedRealtimeNanos()
+            currentState = TrackState.IDLE
+            currentSpeed = 0.0
+        }
+    }
+
+    fun resume() {
+        if (isPaused) {
+            isPaused = false
+            totalPausedNs += SystemClock.elapsedRealtimeNanos() - currentPauseStartNs
+            currentPauseStartNs = 0
+        }
+    }
+
+    private fun calculateEffectiveDuration(timestampNs: Long): Long {
+        if (trackingStartTimeNs == 0L) return 0L
+        val activePauseNs = if (isPaused) (timestampNs - currentPauseStartNs) else 0L
+        return (timestampNs - trackingStartTimeNs - totalPausedNs - activePauseNs) / 1_000_000L
     }
 
     fun updateTime(): SkiStatistics {
         if (trackingStartTimeNs > 0) {
-            val nowNs = SystemClock.elapsedRealtimeNanos()
-            totalDurationMs = (nowNs - trackingStartTimeNs) / 1_000_000L
+            totalDurationMs = calculateEffectiveDuration(SystemClock.elapsedRealtimeNanos())
         }
         return buildStats(currentAlt, currentSpeed, currentState)
     }
 
     fun update(instantData: TrackProcessor.InstantData, timestampNs: Long): SkiStatistics {
         val currentPoint = instantData.point()
-        currentState = instantData.state()
+        val newState = instantData.state()
         currentSpeed = instantData.speedMs()
         currentAlt = currentPoint.altitude()
-        totalDurationMs = (timestampNs - trackingStartTimeNs) / 1_000_000L
+        if (newState == TrackState.SKIING && currentState != TrackState.SKIING) {
+            descentsCount++
+        }
+        currentState = newState
+
+        totalDurationMs = calculateEffectiveDuration(timestampNs)
 
         if (lastPoint == null) {
             lastPointTimeNs = timestampNs
@@ -117,7 +155,8 @@ class TrackerStats {
             totalDurationMs,
             skiingDurationMs,
             liftDurationMs,
-            state
+            descentsCount,
+            if (isPaused) TrackState.IDLE else state
         )
     }
 }

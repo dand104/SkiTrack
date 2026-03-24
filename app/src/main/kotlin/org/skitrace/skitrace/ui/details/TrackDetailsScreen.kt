@@ -38,7 +38,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -61,77 +65,67 @@ import org.skitrace.skitrace.core.model.TrackState
 import org.skitrace.skitrace.data.db.entity.TrackPointEntity
 import org.skitrace.skitrace.data.db.entity.TrackRunEntity
 import org.skitrace.skitrace.data.repository.TrackerRepository
+import org.skitrace.skitrace.data.util.DurationFormat
 import org.skitrace.skitrace.map.MapStyles
+import java.util.concurrent.TimeUnit
 
 class TrackDetailsViewModel(
     private val repository: TrackerRepository,
     private val runId: Long
 ) : ViewModel() {
-    private val _run = MutableStateFlow<TrackRunEntity?>(null)
-    val run = _run.asStateFlow()
 
-    private val _points = MutableStateFlow<List<TrackPointEntity>>(emptyList())
-    val points = _points.asStateFlow()
+    val run: StateFlow<TrackRunEntity?> = repository.getRunFlow(runId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _geoJsonString = MutableStateFlow<String?>(null)
     val geoJsonString = _geoJsonString.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            val r = repository.getRun(runId)
-            _run.value = r
-            val p = repository.getRunPoints(runId)
-            _points.value = p
-
+    val points: StateFlow<List<TrackPointEntity>> = repository.getRunPointsFlow(runId)
+        .onEach { p ->
+            if (p.isEmpty()) return@onEach
             val features = mutableListOf<Feature<Geometry, JsonObject>>()
-            if (p.isNotEmpty()) {
-                var segmentPoints = mutableListOf<Position>()
-                var lastState = p.first().stateCode
+            var segmentPoints = mutableListOf<Position>()
+            var lastState = p.first().stateCode
 
-                p.forEach { point ->
-                    val pos = Position(point.longitude, point.latitude)
+            p.forEach { point ->
+                val pos = Position(point.longitude, point.latitude)
 
-                    if (point.stateCode != lastState && segmentPoints.isNotEmpty()) {
-                        segmentPoints.add(pos)
-
-                        if (segmentPoints.size >= 2) {
-                            features.add(
-                                Feature(
-                                    geometry = LineString(segmentPoints.toList()),
-                                    properties = buildJsonObject { put("state", lastState) },
-                                    id = null
-                                )
+                if (point.stateCode != lastState && segmentPoints.isNotEmpty()) {
+                    segmentPoints.add(pos)
+                    if (segmentPoints.size >= 2) {
+                        features.add(
+                            Feature(
+                                geometry = LineString(segmentPoints.toList()),
+                                properties = buildJsonObject { put("state", lastState) },
+                                id = null
                             )
-                        }
-
-                        segmentPoints = mutableListOf(pos)
-                        lastState = point.stateCode
-                    } else {
-                        segmentPoints.add(pos)
+                        )
                     }
-                }
-
-                if (segmentPoints.size >= 2) {
-                    val feature = Feature(
-                        geometry = LineString(segmentPoints.toList()),
-                        properties = buildJsonObject {
-                            put("state", lastState)
-                        },
-                        id = null
-                    )
-                    features.add(feature)
+                    segmentPoints = mutableListOf(pos)
+                    lastState = point.stateCode
+                } else {
+                    segmentPoints.add(pos)
                 }
             }
-            val collection = FeatureCollection(features)
-            _geoJsonString.value = collection.toJson()
+
+            if (segmentPoints.size >= 2) {
+                features.add(
+                    Feature(
+                        geometry = LineString(segmentPoints.toList()),
+                        properties = buildJsonObject { put("state", lastState) },
+                        id = null
+                    )
+                )
+            }
+            _geoJsonString.value = FeatureCollection(features).toJson()
         }
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
 
     fun deleteRun() = viewModelScope.launch { repository.deleteRun(runId) }
 
     fun renameRun(newName: String) = viewModelScope.launch {
         repository.updateRunTitle(runId, newName)
-        _run.value = repository.getRun(runId)
     }
 
     suspend fun exportRun() = repository.exportRun(runId)
@@ -168,7 +162,7 @@ fun TrackDetailsScreen(runId: Long, onBack: () -> Unit) {
 
     BottomSheetScaffold(
         scaffoldState = bottomSheetState,
-        sheetPeekHeight = 320.dp,
+        sheetPeekHeight = 350.dp,
         sheetContainerColor = MaterialTheme.colorScheme.surface,
         sheetContent = {
             TrackDetailsContent(
@@ -260,7 +254,7 @@ fun TrackDetailsContent(
             if (isEditingName) {
                 IconButton(onClick = {
                     isEditingName = false
-                    currentName = run.note ?: "Ski Session" // откат изменений
+                    currentName = run.note ?: "Ski Session"
                 }) {
                     Icon(Icons.Default.Close, "Cancel")
                 }
@@ -322,12 +316,27 @@ fun TrackDetailsContent(
             )
         }
 
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Total Distance: %.1f km".format(run.totalDistance / 1000.0),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary
-        )
+        Spacer(Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    DetailStatItem("Distance", "%.1f".format(run.totalDistance / 1000.0), "km")
+                    DetailStatItem("Duration", DurationFormat(run.durationMs), "")
+                    DetailStatItem("Descents", "${run.descentsCount}", "runs")
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    DetailStatItem("Vert Drop", "%.0f".format(run.verticalDrop), "m")
+                    DetailStatItem("Max Speed", "%.0f".format(run.maxSpeed * 3.6), "km/h")
+                    DetailStatItem("Ski / Lift", "${DurationFormat(run.activeSkiingMs)} / ${DurationFormat(run.liftMs)}", "")
+                }
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -341,6 +350,32 @@ fun TrackDetailsContent(
             TrackGraph(points, GraphType.SPEED)
         }
         Spacer(Modifier.height(48.dp))
+    }
+}
+
+@Composable
+fun DetailStatItem(label: String, value: String, unit: String) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            if (unit.isNotEmpty()) {
+                Text(
+                    text = unit,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 3.dp, start = 2.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

@@ -31,12 +31,18 @@ interface TrackDao {
 
     @Query("SELECT * FROM track_runs WHERE id = :id")
     suspend fun getRunById(id: Long): TrackRunEntity?
-    
+
+    @Query("SELECT * FROM track_runs WHERE id = :id")
+    fun getRunByIdFlow(id: Long): Flow<TrackRunEntity?>
+
     @Query("DELETE FROM track_runs WHERE id = :id")
     suspend fun deleteRunById(id: Long)
 
     @Query("SELECT * FROM track_points WHERE runId = :runId ORDER BY timestamp ASC")
     suspend fun getPointsForRun(runId: Long): List<TrackPointEntity>
+
+    @Query("SELECT * FROM track_points WHERE runId = :runId ORDER BY timestamp ASC")
+    fun getPointsForRunFlow(runId: Long): Flow<List<TrackPointEntity>>
 
     @Query("SELECT SUM(totalDistance) FROM track_runs")
     fun getTotalDistance(): Flow<Double?>

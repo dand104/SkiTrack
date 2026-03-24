@@ -15,5 +15,6 @@ data class TrackRunEntity(
     val durationMs: Long = 0,
     val activeSkiingMs: Long = 0,
     val liftMs: Long = 0,
+    val descentsCount: Int = 0,
     val note: String? = null
 )

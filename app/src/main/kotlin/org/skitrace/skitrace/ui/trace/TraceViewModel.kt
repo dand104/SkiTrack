@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import org.skitrace.skitrace.core.model.SkiStatistics
 import org.skitrace.skitrace.core.model.TrackState
@@ -26,8 +26,15 @@ class TraceViewModel(
     val isTracking: StateFlow<Boolean> = repository.isTracking
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val currentStateLabel: StateFlow<String> = repository.currentStats.map {
-        when(it.state()) {
+    val isPaused: StateFlow<Boolean> = repository.isPaused
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val currentStateLabel: StateFlow<String> = combine(
+        repository.currentStats,
+        repository.isPaused
+    ) { stats, paused ->
+        if (paused) return@combine "Paused ⏸️"
+        when(stats.state()) {
             TrackState.SKIING -> "Skiing \uD83C\uDFBF"
             TrackState.LIFT -> "Lift \uD83D\uDEA1"
             TrackState.IDLE -> "Idle \u23F8\uFE0F"
@@ -44,6 +51,16 @@ class TraceViewModel(
             intent.action = TrackerService.ACTION_START
             application.startForegroundService(intent)
         }
+    }
+
+    fun togglePause() {
+        val intent = Intent(application, TrackerService::class.java)
+        if (isPaused.value) {
+            intent.action = TrackerService.ACTION_RESUME
+        } else {
+            intent.action = TrackerService.ACTION_PAUSE
+        }
+        application.startService(intent)
     }
 
     class Factory(

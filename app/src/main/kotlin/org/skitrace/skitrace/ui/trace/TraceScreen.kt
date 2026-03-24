@@ -8,10 +8,18 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownhillSkiing
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,18 +28,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import org.skitrace.skitrace.SkiTraceApplication
 import org.skitrace.skitrace.core.model.SkiStatistics
-import org.skitrace.skitrace.ui.theme.AppTypography
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -44,6 +54,7 @@ fun TraceScreen() {
 
     val stats by viewModel.stats.collectAsState()
     val isTracking by viewModel.isTracking.collectAsState()
+    val isPaused by viewModel.isPaused.collectAsState()
     val statusLabel by viewModel.currentStateLabel.collectAsState()
 
     var hasPermission by remember {
@@ -85,32 +96,20 @@ fun TraceScreen() {
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            StatusChip(statusLabel)
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val speedVal = (stats.currentSpeedMs * 3.6)
+            StatusChip(statusLabel, isPaused)
+            Spacer(modifier = Modifier.height(24.dp))
 
-                RollingNumber(
-                    value = speedVal,
-                    style = AppTypography.displayLarge,
-                    format = "%.0f"
-                )
-                Text(
-                    text = "km/h",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            SecondaryMetricsGrid(stats)
+            ExpressiveMetricsGrid(stats = stats, modifier = Modifier.weight(1f))
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            HoldToInteractButton(
+            ControlButtons(
                 isTracking = isTracking,
-                onToggle = { viewModel.toggleTracking() },
+                isPaused = isPaused,
+                onToggleTracking = { viewModel.toggleTracking() },
+                onTogglePause = { viewModel.togglePause() },
                 modifier = Modifier.padding(bottom = 32.dp)
             )
         }
@@ -118,9 +117,9 @@ fun TraceScreen() {
 }
 
 @Composable
-fun StatusChip(label: String) {
+fun StatusChip(label: String, isPaused: Boolean) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (isPaused) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(50),
         modifier = Modifier.padding(top = 16.dp)
     ) {
@@ -128,89 +127,156 @@ fun StatusChip(label: String) {
             text = label,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = if (isPaused) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 @Composable
-fun SecondaryMetricsGrid(stats: SkiStatistics) {
+fun ExpressiveMetricsGrid(stats: SkiStatistics, modifier: Modifier = Modifier) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            CompactMetricItem(
-                value = stats.currentAltitude,
-                label = "Altitude",
-                unit = "m",
-                format = "%.0f"
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Speed",
+                value = stats.currentSpeedMs * 3.6,
+                unit = "km/h",
+                icon = Icons.Default.Speed,
+                format = "%.0f",
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
-            CompactMetricItem(
-                value = stats.verticalDropMeters,
-                label = "Vert. Drop",
-                unit = "m",
-                format = "%.0f"
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Runs",
+                value = stats.descentsCount.toDouble(),
+                unit = "",
+                icon = Icons.Default.DownhillSkiing,
+                format = "%.0f",
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
             )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            CompactMetricItem(
-                value = stats.totalDistanceMeters / 1000.0,
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
                 label = "Distance",
+                value = stats.totalDistanceMeters / 1000.0,
                 unit = "km",
+                icon = Icons.Default.Route,
                 format = "%.1f"
             )
-            val durationStr = formatDuration(stats.totalDurationMs)
-            MetricStaticItem(
-                value = durationStr,
-                label = "Duration"
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Vert Drop",
+                value = stats.verticalDropMeters,
+                unit = "m",
+                icon = Icons.Default.TrendingDown,
+                format = "%.0f"
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Duration",
+                value = 0.0,
+                unit = "",
+                icon = Icons.Default.Timer,
+                format = "",
+                customValueStr = formatDuration(stats.totalDurationMs)
+            )
+            ExpressiveMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Altitude",
+                value = stats.currentAltitude,
+                unit = "m",
+                icon = Icons.Default.Terrain,
+                format = "%.0f"
             )
         }
     }
 }
 
 @Composable
-fun CompactMetricItem(
-    value: Double,
+fun ExpressiveMetricCard(
+    modifier: Modifier = Modifier,
     label: String,
+    value: Double,
     unit: String,
-    format: String
+    icon: ImageVector,
+    format: String,
+    customValueStr: String? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        RollingNumber(
-            value = value,
-            style = AppTypography.displayMedium,
-            format = format
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Card(
+        modifier = modifier.aspectRatio(1.5f),
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor.copy(alpha = 0.8f),
+                modifier = Modifier.size(28.dp)
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Column {
+                if (customValueStr != null) {
+                    Text(
+                        text = customValueStr,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor
+                    )
+                } else {
+                    RollingNumber(
+                        value = value,
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        format = format,
+                        color = contentColor
+                    )
+                }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = contentColor.copy(alpha = 0.8f)
+                    )
+                    if (unit.isNotEmpty()) {
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = unit,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
-
-@Composable
-fun MetricStaticItem(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = AppTypography.displayMedium,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
 
 @Composable
 fun RollingNumber(
     value: Double,
     style: androidx.compose.ui.text.TextStyle,
     format: String,
+    color: Color = MaterialTheme.colorScheme.onSurface,
     modifier: Modifier = Modifier
 ) {
     val animatedValue by animateFloatAsState(
@@ -227,39 +293,86 @@ fun RollingNumber(
         text = text,
         style = style,
         modifier = modifier,
-        color = MaterialTheme.colorScheme.onSurface
+        color = color
     )
 }
 
 @Composable
-fun HoldToInteractButton(
+fun ControlButtons(
     isTracking: Boolean,
-    onToggle: () -> Unit,
+    isPaused: Boolean,
+    onToggleTracking: () -> Unit,
+    onTogglePause: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val scope = rememberCoroutineScope()
+    if (isTracking) {
+        Row(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilledIconButton(
+                onClick = onTogglePause,
+                modifier = Modifier.size(72.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Icon(
+                    imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    contentDescription = if (isPaused) "Resume" else "Pause",
+                    modifier = Modifier.size(32.dp)
+                )
+            }
 
+            HoldToInteractButton(
+                icon = Icons.Default.Stop,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                iconColor = MaterialTheme.colorScheme.onErrorContainer,
+                progressColor = MaterialTheme.colorScheme.error,
+                onAction = onToggleTracking
+            )
+        }
+    } else {
+        Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            HoldToInteractButton(
+                icon = Icons.Default.PlayArrow,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                iconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                progressColor = Color.Transparent,
+                onAction = onToggleTracking,
+                requiresHold = false
+            )
+        }
+    }
+}
+
+@Composable
+fun HoldToInteractButton(
+    icon: ImageVector,
+    containerColor: Color,
+    iconColor: Color,
+    progressColor: Color,
+    onAction: () -> Unit,
+    requiresHold: Boolean = true,
+    modifier: Modifier = Modifier
+) {
     val holdDuration = 1000L
 
     var isPressed by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
-
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val errorColor = MaterialTheme.colorScheme.error
-    val containerColor = if (isTracking) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primaryContainer
-    val iconColor = if (isTracking) errorColor else MaterialTheme.colorScheme.onPrimaryContainer
-
     val scale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "scale")
 
     LaunchedEffect(isPressed) {
-        if (isPressed) {
+        if (isPressed && requiresHold) {
             val startTime = System.currentTimeMillis()
             while (isPressed && progress < 1f) {
                 val elapsed = System.currentTimeMillis() - startTime
                 progress = (elapsed.toFloat() / holdDuration).coerceAtMost(1f)
                 if (progress >= 1f) {
-                    onToggle()
+                    onAction()
                     isPressed = false
                 }
                 delay(16)
@@ -275,30 +388,30 @@ fun HoldToInteractButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(110.dp)
+            .size(90.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(40.dp))
+            .clip(CircleShape)
             .background(containerColor)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
-                        if (isTracking) {
+                        if (requiresHold) {
                             isPressed = true
                             tryAwaitRelease()
                             isPressed = false
                         } else {
-                            onToggle()
+                            onAction()
                         }
                     }
                 )
             }
             .drawBehind {
-                if (isTracking && progress > 0f) {
+                if (requiresHold && progress > 0f) {
                     drawArc(
-                        color = errorColor,
+                        color = progressColor,
                         startAngle = -90f,
                         sweepAngle = 360f * progress,
                         useCenter = false,
@@ -310,10 +423,10 @@ fun HoldToInteractButton(
             }
     ) {
         Icon(
-            imageVector = if (isTracking) Icons.Default.Stop else Icons.Default.PlayArrow,
+            imageVector = icon,
             contentDescription = null,
             tint = iconColor,
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(42.dp)
         )
     }
 }

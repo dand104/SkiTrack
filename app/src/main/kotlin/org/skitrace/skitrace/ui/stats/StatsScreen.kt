@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import org.skitrace.skitrace.SkiTraceApplication
 import org.skitrace.skitrace.data.db.entity.TrackRunEntity
+import org.skitrace.skitrace.data.util.DurationFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -289,7 +290,6 @@ fun BigStat(value: String, unit: String, label: String) {
 @Composable
 fun ExpressiveRunCard(run: TrackRunEntity, onClick: () -> Unit) {
     val dateFormat = SimpleDateFormat("EEEE, d MMM", Locale.getDefault())
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     Card(
         modifier = Modifier
@@ -317,16 +317,32 @@ fun ExpressiveRunCard(run: TrackRunEntity, onClick: () -> Unit) {
                         Text(text = dateFormat.format(Date(run.startTime)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = formatDuration(run.durationMs),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (run.descentsCount > 0) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "${run.descentsCount} runs",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = DurationFormat(run.durationMs),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -366,10 +382,4 @@ fun RunStatItem(label: String, value: String, unit: String) {
             )
         }
     }
-}
-
-private fun formatDuration(millis: Long): String {
-    val hours = TimeUnit.MILLISECONDS.toHours(millis)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
-    return if (hours > 0) "%dh %02dm".format(hours, minutes) else "%02dm".format(minutes)
 }
